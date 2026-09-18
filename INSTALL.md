@@ -9,7 +9,7 @@
    winget install --id Git.Git -e
    # 開一個新的 PowerShell 視窗
    mkdir $env:USERPROFILE\Projects -Force; cd $env:USERPROFILE\Projects
-   git clone https://github.com/<你的帳號>/ollama-vision-setup.git
+   git clone https://github.com/frentexx/ollama-vision-setup.git
    cd ollama-vision-setup
    ```
    第一次 clone private repo 時，會跳出瀏覽器要你登入 GitHub，請自己完成登入
