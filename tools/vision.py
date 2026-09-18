@@ -13,6 +13,12 @@ from pathlib import Path
 import requests
 from PIL import Image, ImageOps
 
+try:  # iPhone 拍的 HEIC 照片；沒裝 pillow-heif 就只能讀 JPEG／PNG
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+except ImportError:
+    pass
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -102,16 +108,17 @@ def build_prompt(rubric=DEMO_RUBRIC, n_images: int = 1) -> str:
     return f"{head}\n請依照作業檢查點逐項判斷，並寫出評語草稿：\n{items}"
 
 
-def chat(images_b64, prompt, fmt=FEEDBACK_SCHEMA, num_predict: int = 800, timeout: int = 300) -> dict:
+def chat(images_b64, prompt, fmt=FEEDBACK_SCHEMA, num_predict: int = 800, timeout: int = 300,
+         system: str = SYSTEM_PROMPT, temperature: float = 0.3) -> dict:
     """送一次請求，回傳 {'content', 'parsed', 各項耗時(秒), tok/s}。"""
     body = {
         "model": MODEL,
         "stream": False,
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system},
             {"role": "user", "content": prompt, "images": list(images_b64)},
         ],
-        "options": {"temperature": 0.3, "num_ctx": NUM_CTX, "num_predict": num_predict},
+        "options": {"temperature": temperature, "num_ctx": NUM_CTX, "num_predict": num_predict},
     }
     if fmt is not None:
         body["format"] = fmt

@@ -5,3 +5,5 @@ __pycache__/
 tests/images/generated/
 reports/raw/
 *.bak-*
+# 批改資料：學生姓名與作品照片，不進 git
+data/

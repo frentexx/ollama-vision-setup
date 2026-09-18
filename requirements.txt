@@ -2,3 +2,7 @@ requests>=2.31
 pillow>=10.0
 ollama>=0.4
 opencc-python-reimplemented>=0.1.7
+# 批改系統（grade.py）
+flask>=3.0
+pillow-heif>=0.16
+tomli>=2.0; python_version < "3.11"

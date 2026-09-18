@@ -4,4 +4,5 @@
 
 - 安裝：[INSTALL.md](INSTALL.md)
 - 驗收：[ACCEPTANCE.md](ACCEPTANCE.md)
+- 批改系統（第二階段）：[GRADING.md](GRADING.md)
 - 專案藍圖（Claude Code 會自動載入）：[AGENTS.md](AGENTS.md)

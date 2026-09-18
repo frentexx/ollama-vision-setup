@@ -1,18 +1,21 @@
 # 交接檔：ollama-vision-setup
 
-**最後更新**：2026-09-18 13:07 ｜ PPSHPC-004001
+**最後更新**：2026-09-18 17:38 ｜ ppsh-VR-1
 
 ## 上次做到哪
-已在 PPSHPC-004001 寫完 repo：scripts/00～50、run-all.ps1、tests/verify.py、tools/vision.py、INSTALL.md、ACCEPTANCE.md，以及 claude-skills/ 裡的三個技能。目標機還沒有安裝。
+在 ppsh-VR-1 裝好 Ollama＋qwen3-vl:8b-instruct，自動驗收全過（報告 `reports/acceptance-ppsh-VR-1-20260918-1505.md`）。接著做了批改系統 `grade.py`：讀 Padlet → 依 rubric 寫草稿（鼓勵／蘇格拉底式修正）→ 審核頁核准 → 發回 Padlet。已接上真的 Padlet（教室版帳號 pad02_98），讀取、下載、分組、草稿都實測過；審核頁已開放校內（密碼＋防火牆，美術老師可連）。**「發布評語到 Padlet」還沒實測**，因為測試照片都不是美術作品（AI 正確判為「請重傳」）。另外用 RDQ 寫了「作業牆自動建立網頁＋後台」規格卡，停在 draft。
 
 ## 下一步
-1. 在目標機 git clone 這個 repo，照 INSTALL.md 的路線 A 讓 Claude Code 安裝
-2. 跑 scripts\50-verify.ps1，拿到 reports\acceptance-*.md
-3. 完成 ACCEPTANCE.md 的三項人工確認，把報告 commit 並 push 回來
+1. 在測試看板 `https://padlet.com/pad02_98/202609-s023ouxqszxj3kriwhu2` **開留言**，用學生帳號按「＋」上傳一組真的美術作品照片 → `grade.py run <網址> --rubric rubrics\範例-色彩練習.toml` → 自己核准、按「發布」，確認評語出現在「① 作品全貌」底下
+2. 確認 RDQ 規格卡 `rdq/RDQ-spec-padlet-assignment-portal-20260918.md`（看 ❓假設、❌排除項），改成 confirmed 才實作
+3. 請美術老師用文字寫一份近期作業的評分標準，照 rubric 校準方向（分層＋一致率報告＋檢查點題庫）做第一個實例
 
 ## 卡關／待決
-- 目標機的安裝日期未定
-- 真實作品與美術老師的評分規準尚未取得，要等拿到後才能評估評語品質
+- 驗收報告的三項人工確認（另一台連 11434 被拒、評語無幻覺、重開機自動恢復）尚未勾選簽名
+- 審核頁密碼使用者設得很簡單，學生在同一校內網路連得到登入頁，建議換強密碼
+- 學生繳交格式問題：會把照片留言在說明卡底下、標題亂寫；是否要求學生用學校帳號登入、是否做班級名單對應，待決
+- `-System`（關睡眠、更新時段）使用者決定不做，上課時電腦可能睡著
 
 ## 變更紀錄
+- 2026-09-18 ppsh-VR-1：安裝＋驗收通過；新增批改系統（grade.py、grader/、rubrics/、審核頁含密碼登入）、接上 Padlet API 與 Padlet MCP（0.2.0 鎖定 commit）、建立測試作業牆、RDQ 規格卡 draft
 - 2026-09-18 PPSHPC-004001：建立 repo，依 RDQ 規格卡（修訂 1）完成安裝與驗收腳本

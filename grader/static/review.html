@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>評語審核</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --card: #fff; --ink: #1f2328; --muted: #6b7078; --line: #e3e1dc;
+    --accent: #2f6f5e; --accent-ink: #fff; --warn: #9a5b00; --warn-bg: #fff4de;
+    --bad: #a3322b; --ok: #2f6f5e; --ok-bg: #e5f2ee; --chip: #eeece7;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 "Microsoft JhengHei", "PingFang TC", system-ui, sans-serif; }
+  header { position: sticky; top: 0; z-index: 5; background: var(--card); border-bottom: 1px solid var(--line); padding: 10px 20px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; max-width: 1280px; margin: 0 auto; }
+  h1 { font-size: 18px; margin: 0; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .spacer { flex: 1; }
+  button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: #b9b5ad; }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  button.danger { color: var(--bad); }
+  select, textarea, input { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+  textarea { width: 100%; resize: vertical; min-height: 110px; line-height: 1.7; padding: 8px 10px; }
+  input.note { width: 100%; padding: 6px 10px; }
+  main { max-width: 1280px; margin: 0 auto; padding: 16px 20px 80px; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .tabs button { border-radius: 999px; padding: 3px 12px; font-size: 14px; }
+  .tabs button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 16px; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); overflow: hidden; }
+  .card.done { opacity: .72; }
+  @media (max-width: 860px) { .card { grid-template-columns: 1fr; } }
+  .pics { background: #22252a; display: grid; gap: 4px; padding: 4px; align-content: start; }
+  .pics img { width: 100%; max-height: 380px; object-fit: contain; cursor: zoom-in; background: #111; border-radius: 4px; }
+  .body { padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .name { font-size: 17px; font-weight: 700; }
+  .badge { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--chip); color: var(--muted); }
+  .badge.approved { background: var(--ok-bg); color: var(--ok); }
+  .badge.posted { background: var(--ok); color: #fff; }
+  .badge.error { background: #fbe7e5; color: var(--bad); }
+  .flags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .flag { font-size: 13px; background: var(--warn-bg); color: var(--warn); border-radius: 6px; padding: 1px 8px; }
+  .desc { color: var(--muted); font-size: 14px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  td { border-top: 1px solid var(--line); padding: 5px 6px; vertical-align: top; }
+  td.cn { white-space: nowrap; font-weight: 600; width: 1%; }
+  td.lv { width: 1%; }
+  td.ev { color: var(--muted); }
+  .teacher { font-size: 11px; color: var(--warn); display: block; font-weight: 400; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .mode button { border-radius: 0; margin-left: -1px; }
+  .mode button:first-child { border-radius: 8px 0 0 8px; }
+  .mode button:last-child { border-radius: 0 8px 8px 0; }
+  .mode button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .label { font-size: 13px; color: var(--muted); }
+  .preview { background: var(--bg); border-radius: 8px; padding: 8px 12px; font-size: 14px; }
+  .preview p { margin: 0 0 4px; }
+  .score { font-weight: 700; }
+  .hint { font-size: 13px; color: var(--warn); }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; margin-bottom: 16px; }
+  .panel h2 { font-size: 16px; margin: 0 0 8px; }
+  .panel h3 { font-size: 14px; margin: 10px 0 4px; }
+  .panel ul { margin: 0; padding-left: 20px; }
+  .stats { overflow-x: auto; }
+  .stats td, .stats th { padding: 3px 10px; border-top: 1px solid var(--line); text-align: center; font-size: 13px; white-space: nowrap; }
+  .stats th { font-weight: 600; }
+  .stats td:first-child { text-align: left; }
+  #zoom { position: fixed; inset: 0; background: rgba(0,0,0,.88); display: flex; align-items: center; justify-content: center; z-index: 20; cursor: zoom-out; }
+  #zoom img { max-width: 96vw; max-height: 96vh; }
+  #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 8px 16px; border-radius: 8px; z-index: 30; max-width: 90vw; }
+  #busy { position: fixed; inset: 0; background: rgba(246,245,242,.6); z-index: 25; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .empty { text-align: center; color: var(--muted); padding: 40px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div>
+      <h1 id="title">評語審核</h1>
+      <div class="sub" id="subtitle"></div>
+    </div>
+    <select id="boardSel" title="切換作業版" hidden></select>
+    <div class="spacer"></div>
+    <span class="sub" id="counts"></span>
+    <button id="btnSummary">全班摘要</button>
+    <button id="btnExport">匯出成績 CSV</button>
+    <button id="btnPublish" class="primary">發布已核准</button>
+    <a class="sub" href="/logout" id="logout">登出</a>
+  </div>
+</header>
+<main>
+  <div id="summary"></div>
+  <div class="tabs" id="tabs"></div>
+  <div id="list"></div>
+</main>
+<div id="zoom" hidden><img alt=""></div>
+<div id="toast" hidden></div>
+<div id="busy" hidden>AI 處理中…</div>
+
+<script>
+const STATUS = { new: "待產生", drafted: "待審核", approved: "已核准", posted: "已發布", skipped: "略過", error: "錯誤" };
+const TABS = [["todo", "待審核"], ["approved", "已核准"], ["posted", "已發布"], ["skipped", "略過"], ["error", "錯誤"], ["all", "全部"]];
+const UNKNOWN = "無法判斷";
+let B = null, boardId = null, tab = "todo";
+const dirty = new Set();   // 等級改過、還沒重寫評語的學生
+
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+function toast(msg, ms = 3500) {
+  const t = $("#toast"); t.textContent = msg; t.hidden = false;
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.hidden = true, ms);
+}
+
+async function api(path, body) {
+  const busy = body && (path.endsWith("redraft") || path.endsWith("summary") || path.endsWith("publish"));
+  if (busy) $("#busy").hidden = false;
+  try {
+    const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
+    if (r.status === 401) { location.href = "/login"; throw new Error("請先登入"); }
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || r.statusText);
+    return d;
+  } finally { $("#busy").hidden = true; }
+}
+
+async function load(id) {
+  const boards = await api("/api/boards");
+  if (!boards.length) { $("#list").innerHTML = '<div class="empty">還沒有任何作業版，請先執行 grade.py run</div>'; return; }
+  boardId = id || new URLSearchParams(location.search).get("board") || boards[0].id;
+  const sel = $("#boardSel");
+  sel.innerHTML = boards.map(b => `<option value="${esc(b.id)}">${esc(b.title)}（${b.n} 位）</option>`).join("");
+  sel.value = boardId; sel.hidden = boards.length < 2;
+  B = await api(`/api/board/${encodeURIComponent(boardId)}`);
+  render();
+}
+
+function render() {
+  $("#title").textContent = `${B.board.title}｜${B.rubric.title}`;
+  $("#subtitle").innerHTML = (B.source === "local" ? "本機資料夾試跑（不會發到 Padlet）" : `<a href="${esc(B.board.url)}" target="_blank">開啟 Padlet</a>`)
+    + `　分組方式：${esc(B.group_by)}　抓取時間：${esc((B.fetched_at || "").replace("T", " "))}`;
+  const c = {}; B.students.forEach(s => c[s.status] = (c[s.status] || 0) + 1);
+  $("#counts").textContent = Object.entries(STATUS).filter(([k]) => c[k]).map(([k, v]) => `${v} ${c[k]}`).join("　");
+  const nApproved = c.approved || 0;
+  const pub = $("#btnPublish");
+  pub.textContent = `發布已核准（${nApproved}）`;
+  pub.disabled = !nApproved || B.source !== "padlet";
+  pub.title = B.source !== "padlet" ? "本機試跑不能發布" : "";
+
+  const counts = { todo: (c.new || 0) + (c.drafted || 0), all: B.students.length, ...c };
+  $("#tabs").innerHTML = TABS.map(([k, v]) => `<button data-tab="${k}" class="${k === tab ? "on" : ""}">${v} ${counts[k] || 0}</button>`).join("");
+  renderSummary();
+  const list = B.students.filter(s => tab === "all" || (tab === "todo" ? ["new", "drafted"].includes(s.status) : s.status === tab));
+  $("#list").innerHTML = list.length ? list.map(card).join("") : '<div class="empty">這一類沒有學生</div>';
+}
+
+function card(s) {
+  const R = B.rubric, locked = ["approved", "posted", "skipped"].includes(s.status);
+  const opts = [...R.levels, UNKNOWN];
+  const rows = R.criteria.map(c => {
+    const ev = s.ai?.criteria?.[c.key]?.evidence || (c.ai ? "" : "請老師判斷");
+    const cur = s.levels[c.key] || "";
+    return `<tr><td class="cn">${esc(c.name)}${c.ai ? "" : '<span class="teacher">老師判斷</span>'}</td>
+      <td class="lv"><select data-crit="${c.key}" ${locked ? "disabled" : ""} title="${esc(c.look_for)}">
+        ${cur ? "" : '<option value="">（未選）</option>'}${opts.map(o => `<option ${o === cur ? "selected" : ""}>${o}</option>`).join("")}
+      </select></td><td class="ev">${esc(ev)}</td></tr>`;
+  }).join("");
+  const strengths = (s.ai?.strengths || []).map(x => `${esc(x.where)}：${esc(x.what)}`).join("；");
+  const score = s.score ? `<span class="score">${s.score[0]} / ${s.score[1]} 分</span>${s.score[2].length ? `<span class="sub">（未評：${esc(s.score[2].join("、"))}）</span>` : ""}` : "";
+  const modeBtns = ["鼓勵", "修正建議"].map(m => `<button data-mode="${m}" class="${s.mode === m ? "on" : ""}" ${locked ? "disabled" : ""}>${m}</button>`).join("");
+  const actions = {
+    new: `<button data-act="rejudge" class="primary">產生草稿</button><button data-act="skip">略過</button>`,
+    drafted: `<button data-act="approve" class="primary" title="Ctrl+Enter">核准</button>
+              <button data-act="rewrite">重寫評語</button><button data-act="rejudge">重新看圖</button><button data-act="skip">略過</button>`,
+    approved: `<button data-act="reopen">退回重審</button>`,
+    skipped: `<button data-act="reopen">取消略過</button>`,
+    error: `<button data-act="rejudge" class="primary">重試</button><button data-act="skip">略過</button>`,
+    posted: `<span class="sub">已於 ${esc((s.posted?.at || "").replace("T", " "))} 發布${s.web_url ? `，<a href="${esc(s.web_url)}" target="_blank">看貼文</a>` : ""}</span>`,
+  }[s.status];
+  return `<section class="card ${locked ? "done" : ""}" data-sid="${esc(s.key)}">
+    <div class="pics">${s.images.map(p => `<img loading="lazy" src="/img/${encodeURIComponent(boardId)}/${p.split("/").map(encodeURIComponent).join("/")}" alt="">`).join("") || '<div class="empty">沒有照片</div>'}</div>
+    <div class="body">
+      <div class="head"><span class="name">${esc(s.name)}</span><span class="badge ${s.status}">${STATUS[s.status]}</span>
+        ${s.web_url ? `<a class="sub" href="${esc(s.web_url)}" target="_blank">Padlet 貼文</a>` : ""}<span class="spacer"></span>${score}</div>
+      ${s.error ? `<div class="flag" style="color:var(--bad)">${esc(s.error)}</div>` : ""}
+      ${s.flags.length ? `<div class="flags">${s.flags.map(f => `<span class="flag">${esc(f)}</span>`).join("")}</div>` : ""}
+      ${s.body ? `<div class="desc">學生說明：${esc(s.body)}</div>` : ""}
+      ${s.ai ? `<div class="desc">AI 看到：${esc(s.ai.description)}${strengths ? `<br>優點：${strengths}` : ""}</div>` : ""}
+      ${s.ai || R.criteria.some(c => !c.ai) ? `<table>${rows}</table>` : ""}
+      ${dirty.has(s.key) ? '<div class="hint">等級改過了，按「重寫評語」讓評語跟著調整</div>' : ""}
+      ${s.status !== "new" && s.status !== "error" ? `
+      <div class="row"><span class="label">評語方向</span><span class="mode">${modeBtns}</span></div>
+      <textarea data-f="comment" ${locked ? "disabled" : ""}>${esc(s.comment)}</textarea>
+      <input class="note" data-f="teacher_note" placeholder="老師補一句（例如透視、比例、明暗的專業建議），會接在評語後面" value="${esc(s.teacher_note)}" ${locked ? "disabled" : ""}>
+      <details><summary class="label">學生會看到的樣子</summary><div class="preview">${s.preview_html}</div></details>` : ""}
+      <div class="row">${actions}</div>
+    </div></section>`;
+}
+
+function renderSummary() {
+  const S = B.summary;
+  if (!S) { $("#summary").innerHTML = ""; return; }
+  const lv = Object.keys(Object.values(S.stats)[0] || {});   // 各等級＋無法判斷＋未評
+  const stats = `<div class="stats"><table><tr><th></th>${lv.map(l => `<th>${l}</th>`).join("")}</tr>
+    ${Object.entries(S.stats).map(([k, v]) => `<tr><td>${esc(k)}</td>${lv.map(l => `<td>${v[l] || 0}</td>`).join("")}</tr>`).join("")}</table></div>`;
+  const ul = xs => `<ul>${xs.map(x => `<li>${esc(x)}</li>`).join("")}</ul>`;
+  $("#summary").innerHTML = `<div class="panel"><h2>全班摘要（${S.n} 位，${esc(S.at.replace("T", " "))}）</h2>${stats}
+    <h3>共同亮點</h3>${ul(S.highlights)}<h3>常見問題</h3>${ul(S.common_issues)}<h3>下一堂課可以…</h3>${ul(S.teaching_tips)}</div>`;
+}
+
+function collect(el) {
+  const levels = {};
+  el.querySelectorAll("select[data-crit]").forEach(x => { if (x.value) levels[x.dataset.crit] = x.value; });
+  const comment = $("textarea[data-f=comment]", el), note = $("input[data-f=teacher_note]", el);
+  return { levels, ...(comment ? { comment: comment.value } : {}), ...(note ? { teacher_note: note.value } : {}) };
+}
+
+async function act(el, action) {
+  const sid = el.dataset.sid, base = `/api/board/${encodeURIComponent(boardId)}`;
+  try {
+    if (action === "rejudge" || action === "rewrite") {
+      const hint = action === "rewrite" ? (prompt("要給 AI 什麼提示嗎？（可留空，例如：多肯定背景的筆觸）") ?? null) : "";
+      if (hint === null) return;
+      B = await api(`${base}/redraft`, { sid, ...collect(el), rejudge: action === "rejudge", hint });
+      dirty.delete(sid);
+    } else {
+      B = await api(`${base}/update`, { sid, ...collect(el), action });
+      if (action === "approve") toast("已核准，還沒發布；全部審完再按上方「發布已核准」");
+    }
+    render();
+  } catch (e) { toast(e.message, 6000); }
+}
+
+document.addEventListener("click", async e => {
+  const t = e.target;
+  if (t.matches(".pics img")) { $("#zoom img").src = t.src; $("#zoom").hidden = false; return; }
+  if (t.closest("#zoom")) { $("#zoom").hidden = true; return; }
+  if (t.dataset.tab) { tab = t.dataset.tab; render(); window.scrollTo(0, 0); return; }
+  const el = t.closest(".card");
+  if (el && t.dataset.act) return act(el, t.dataset.act);
+  if (el && t.dataset.mode) {
+    try {
+      B = await api(`/api/board/${encodeURIComponent(boardId)}/redraft`, { sid: el.dataset.sid, ...collect(el), mode: t.dataset.mode, rejudge: false });
+      dirty.delete(el.dataset.sid); render();
+    } catch (err) { toast(err.message, 6000); }
+  }
+});
+
+document.addEventListener("change", async e => {
+  const el = e.target.closest(".card");
+  if (!el) return;
+  try {
+    B = await api(`/api/board/${encodeURIComponent(boardId)}/update`, { sid: el.dataset.sid, ...collect(el) });
+    if (e.target.dataset.crit) dirty.add(el.dataset.sid);
+    render();
+  } catch (err) { toast(err.message, 6000); }
+});
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") $("#zoom").hidden = true;
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+    const el = e.target.closest?.(".card");
+    if (el && $("button[data-act=approve]", el)) act(el, "approve");
+  }
+});
+
+$("#boardSel").onchange = e => { history.replaceState(null, "", `?board=${encodeURIComponent(e.target.value)}`); load(e.target.value); };
+$("#btnSummary").onclick = async () => { try { B = await api(`/api/board/${encodeURIComponent(boardId)}/summary`, {}); render(); window.scrollTo(0, 0); } catch (e) { toast(e.message, 6000); } };
+$("#btnExport").onclick = () => { location.href = `/api/board/${encodeURIComponent(boardId)}/export`; };
+$("#btnPublish").onclick = async () => {
+  const names = B.students.filter(s => s.status === "approved").map(s => s.name);
+  const ok = prompt(`即將把 ${names.length} 則評語留言到 Padlet：\n${names.join("、")}\n\n發布後無法從這裡撤回，要修改得到 Padlet 上手動處理。\n確定要發布，請輸入「發布」兩個字：`);
+  if (ok !== "發布") return;
+  try {
+    B = await api(`/api/board/${encodeURIComponent(boardId)}/publish`, { confirm: "發布" });
+    const r = B.result;
+    toast(`發布成功 ${r.ok.length} 則` + (r.fail.length ? `，失敗 ${r.fail.length} 則：${r.fail.join("；")}` : ""), 8000);
+    render();
+  } catch (e) { toast(e.message, 8000); }
+};
+
+load();
+</script>
+</body>
+</html>
