@@ -68,7 +68,9 @@ ollama-vision-setup/
 - 不要安裝 Open WebUI、Cloudflare、WSL2、Docker；不要做 Gemma 4 比較（規格卡已排除）
 - repo 裡不放金鑰與學生資料；`.env`、`data/` 已列入 .gitignore。Padlet API key 放 `.env` 的 `PADLET_API_KEY`
 - ⚠️ **評語發到 Padlet 後無法用系統撤回**：只有老師在審核頁核准、再按「發布已核准」並輸入「發布」才會送出。Claude 不可代為核准或發布
-- 審核頁預設只綁 `127.0.0.1:8765`。要給美術老師從校內其他電腦用（方案 C）：`.env` 設 `GRADER_HOST=0.0.0.0`，**必須先** `grade.py set-password`（沒密碼伺服器會拒絕啟動）；防火牆規則由使用者以系統管理員身分自己加，只允許 LocalSubnet。密碼只存雜湊，Claude 不經手密碼
+- 審核頁預設只綁 `127.0.0.1:8765`。要給美術老師從校內其他電腦用（方案 C）：`.env` 設 `GRADER_HOST=0.0.0.0`，**必須先** `grade.py set-password`（沒密碼伺服器會拒絕啟動）；防火牆規則由使用者以系統管理員身分自己加（「評語審核頁 8765」，2026-09-18 起放行 LocalSubnet＋172.16.0.0/12）。密碼只存雜湊，Claude 不經手密碼
+- ⚠️ **跨網段連不到**（2026-09-18 實測）：批改電腦在 Wi-Fi 172.16.24.28/21，別的網段（例如 172.17.3.2/20）ping 得到但 TCP 8765 不通；本機防火牆與伺服器都已確認正常，推測是學校網路擋跨網段 TCP。要跨網段得請資訊組開放 TCP 8765，並替這台設固定 IP；同網段（同一個 Wi-Fi）可以連
+- 審核頁目前在背景執行（沒有視窗、不會開機自動啟動），重開機後要重跑 `scripts/restart-review.ps1`
 - **重開審核頁（讓老師用到新程式）**：`powershell -ExecutionPolicy Bypass -File "D:\fuwen\地端LLM\ollama-vision-setup\scripts\restart-review.ps1"`（已在 `D:\fuwen\地端LLM\.claude\settings.local.json` 允許 Claude 直接執行）。只停佔用連接埠的 python，背景執行、輸出在 `logs\`。若舊伺服器是用系統管理員身分開的會停不掉，要使用者到工作管理員結束
 - 學生繳交的實測狀況：會把照片「留言」在說明卡底下、標題亂寫（例如只寫「33」、寫別人名字），所以分組一律以 Padlet 帳號／名字為準，標題只當參考並提醒老師
 - AI 建板（create_board）產生的說明卡 author 是 null；新版子預設關閉留言
@@ -80,6 +82,6 @@ ollama-vision-setup/
 - 測試看板：`https://padlet.com/pad02_98/202609-s023ouxqszxj3kriwhu2`（202609美術課程作業繳交，三欄：全貌／特寫／過程）
 - 批改的 prompt 經驗（qwen3-vl 8B）：JSON 欄位要「evidence 在 level 前面」，等級才會跟觀察一致；模型常把沒做到的地方當優點稱讚，所以 feedback.py 有一道檢查，被抓到就只重寫那一句
 - 「評分」只到各檢查點等級與分數，給老師看（審核頁、CSV）；貼給學生的留言不提分數與等級
-- **同步方式**：這個 repo 靠 **GitHub** 同步，不靠 Google Drive。收工技能完成後，提醒使用者自己執行 `git add handoff.md AGENTS.md reports/*.md`、`git commit`、`git push`；只有使用者明確要求時，Claude 才代為 commit／push
+- **同步方式**：這個 repo 靠 **GitHub** 同步，不靠 Google Drive。使用者同意（2026-09-18）：**收工時由 Claude 直接 commit＋push**（ppsh-VR-1 的 `~/.claude/skills/shutdown` 已改成會做；commit 前檢查不含 `.env`、金鑰、`data/`，先 pull --rebase 再 push，不可 force）。其他時候仍是使用者要求才 commit／push。另一台電腦的收工技能若還是舊版（不碰 git），就提醒使用者自己 push
 - PowerShell 腳本必須存成 **UTF-8 with BOM**，否則 Windows PowerShell 5.1 讀中文會變亂碼
 - 規格來源：`Padlet_AI批改_討論紀錄.md`（2026-09-18，第七節）
