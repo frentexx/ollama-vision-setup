@@ -69,7 +69,7 @@ ollama-vision-setup/
 - repo 裡不放金鑰與學生資料；`.env`、`data/` 已列入 .gitignore。Padlet API key 放 `.env` 的 `PADLET_API_KEY`
 - ⚠️ **評語發到 Padlet 後無法用系統撤回**：只有老師在審核頁核准、再按「發布已核准」並輸入「發布」才會送出。Claude 不可代為核准或發布
 - 審核頁預設只綁 `127.0.0.1:8765`。要給美術老師從校內其他電腦用（方案 C）：`.env` 設 `GRADER_HOST=0.0.0.0`，**必須先** `grade.py set-password`（沒密碼伺服器會拒絕啟動）；防火牆規則由使用者以系統管理員身分自己加，只允許 LocalSubnet。密碼只存雜湊，Claude 不經手密碼
-- **重開審核頁（讓老師用到新程式）**：`powershell -ExecutionPolicy Bypass -File "D:uwen\地端LLM\ollama-vision-setup\scriptsestart-review.ps1"`（已在 `D:uwen\地端LLM\.claude\settings.local.json` 允許 Claude 直接執行）。只停佔用連接埠的 python，背景執行、輸出在 `logs\`。若舊伺服器是用系統管理員身分開的會停不掉，要使用者到工作管理員結束
+- **重開審核頁（讓老師用到新程式）**：`powershell -ExecutionPolicy Bypass -File "D:\fuwen\地端LLM\ollama-vision-setup\scripts\restart-review.ps1"`（已在 `D:\fuwen\地端LLM\.claude\settings.local.json` 允許 Claude 直接執行）。只停佔用連接埠的 python，背景執行、輸出在 `logs\`。若舊伺服器是用系統管理員身分開的會停不掉，要使用者到工作管理員結束
 - 學生繳交的實測狀況：會把照片「留言」在說明卡底下、標題亂寫（例如只寫「33」、寫別人名字），所以分組一律以 Padlet 帳號／名字為準，標題只當參考並提醒老師
 - AI 建板（create_board）產生的說明卡 author 是 null；新版子預設關閉留言
 - **一個區段＝一份作業**（2026-09-18 使用者定案）：建牆時老師設定區段數量與名稱；批改單位是「學生×區段」，評語留在該區段那篇。rubric 用 `[[assignments]]`（name 對應區段名稱，包含即算）＋共同 `[[criteria]]`；沒有 assignments 的舊 rubric 走「整面牆一份作業」（unit=student）
