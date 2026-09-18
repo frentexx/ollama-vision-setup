@@ -51,7 +51,7 @@ def login():
             session.clear()
             session["ok"] = True
             session.permanent = False   # 關掉瀏覽器就登出
-            return redirect("/")
+            return redirect("/portal")   # 老師登入後預設進作業牆管理
         wait = auth.locked(ip)
         msg = f"錯誤太多次，請 {wait // 60 + 1} 分鐘後再試" if wait else "密碼錯誤"
         msg = f'<p class="err">{html.escape(msg)}</p>'
