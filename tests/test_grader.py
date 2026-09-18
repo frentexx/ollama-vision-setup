@@ -126,20 +126,53 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(padlet.parse_board(raw, ME)["posts"][0]["image_urls"], ["https://x/a.png", "https://x/b.png"])
 
 
+EXAMPLE = ROOT / "rubrics" / "範例-攝影三作業.toml"
+
+
 class RubricTest(unittest.TestCase):
-    def test_example_loads_and_scores(self):
-        rb = rubric.load(ROOT / "rubrics" / "範例-色彩練習.toml")
-        self.assertEqual([c.ai for c in rb.criteria], [True, True, True, False])
-        got, full, missing = rb.score({"c1": "符合", "c2": "部分符合", "c3": "不符合"})
-        self.assertEqual((got, full, missing), (6, 12, ["明暗表現"]))
+    def test_example_per_section(self):
+        """每個區段一份作業：共同檢查點＋該作業的檢查點；區段名稱前面有編號也對得上。"""
+        rb = rubric.load(EXAMPLE)
+        self.assertEqual([a.name for a in rb.assignments], ["微距攝影", "人物攝影", "風景攝影"])
+        self.assertEqual([c.name for c in rb.criteria], ["對焦清晰", "曝光適當"])
+        r = rb.for_section("② 人物攝影")
+        self.assertEqual(r.assignment, "人物攝影")
+        self.assertEqual([c.key for c in r.criteria], ["c1", "c2", "a2c1", "a2c2", "a2c3"])
+        self.assertEqual([c.ai for c in r.criteria], [True, True, True, True, False])
+        got, full, missing = r.score({"c1": "符合", "c2": "部分符合", "a2c1": "符合", "a2c2": "不符合"})
+        self.assertEqual((got, full, missing), (9, 15, ["神情動作"]))
+        other = rb.for_section("④ 靜物攝影")
+        self.assertEqual((other.assignment, [c.name for c in other.criteria]), ("", ["對焦清晰", "曝光適當"]))
+        self.assertIn("截圖", rb.work)
+
+    def test_match_prefers_longest_name(self):
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "r.toml"
+            f.write_text('[[assignments]]\nname = "攝影"\n[[assignments.criteria]]\nname = "a"\nlook_for = "a"\n'
+                         '[[assignments]]\nname = "人物攝影"\n[[assignments.criteria]]\nname = "b"\nlook_for = "b"\n',
+                         encoding="utf-8")
+            rb = rubric.load(f)
+        self.assertEqual(rb.for_section("人物攝影").assignment, "人物攝影")
+        self.assertEqual(rb.for_section("風景攝影").assignment, "攝影")
+        self.assertEqual(rb.for_section("素描").criteria, [], "對不上也沒有共同檢查點：沒有可評的項目")
 
     def test_modes(self):
-        rb = rubric.load(ROOT / "rubrics" / "範例-色彩練習.toml")
-        self.assertEqual(feedback.pick_mode(rb, {"c1": "符合", "c2": "符合", "c3": "符合"}), "鼓勵")
-        self.assertEqual(feedback.pick_mode(rb, {"c1": "符合", "c2": "無法判斷", "c3": "符合"}), "鼓勵")
-        self.assertEqual(feedback.pick_mode(rb, {"c1": "符合", "c2": "符合", "c3": "符合", "c4": "不符合"}), "修正建議")
-        self.assertEqual([c.name for c in feedback.weakest(rb, {"c1": "部分符合", "c2": "不符合", "c3": "符合"})],
-                         ["冷暖對比", "指定內容"])
+        rb = rubric.load(EXAMPLE).for_section("風景攝影")
+        ok = {"c1": "符合", "c2": "符合", "a3c1": "符合", "a3c2": "符合", "a3c3": "符合"}
+        self.assertEqual(feedback.pick_mode(rb, ok), "鼓勵")
+        self.assertEqual(feedback.pick_mode(rb, {**ok, "a3c2": "無法判斷"}), "鼓勵")
+        self.assertEqual(feedback.pick_mode(rb, {**ok, "a3c3": "部分符合"}), "修正建議")
+        self.assertEqual([c.name for c in feedback.weakest(rb, {**ok, "c1": "部分符合", "a3c2": "不符合"})],
+                         ["三分法構圖", "對焦清晰"])
+
+    def test_judge_prompt_uses_work_definition(self):
+        """人物攝影拍到人是對的：「是不是作品」要看 rubric 的 work，不能寫死「拍到人物就不是作品」。"""
+        rb = rubric.load(EXAMPLE).for_section("人物攝影")
+        prompt = feedback.judge_prompt(rb, 1)
+        self.assertIn(rb.work, prompt)
+        self.assertIn("人物主角", prompt)
+        self.assertNotIn("神情動作", prompt, "ai = false 的項目不送給模型")
+        self.assertNotIn("教室、人物", prompt)
 
     def test_bad_toml_message(self):
         with tempfile.TemporaryDirectory() as d:
@@ -163,7 +196,7 @@ class PublishTest(unittest.TestCase):
         self.patch.start()
         st = store.Store("abcd1234efgh5678")
         st.state = {"board": {"id": "abcd1234efgh5678", "title": "t", "url": ""}, "source": "padlet",
-                    "rubric_path": str(ROOT / "rubrics" / "範例-色彩練習.toml"), "students": {}}
+                    "rubric_path": str(EXAMPLE), "students": {}}
         for i, status in enumerate(["approved", "drafted", "approved", "skipped"]):
             st.students[f"s{i}"] = {"key": f"s{i}", "name": f"學生{i}", "order": i, "status": status,
                                     "target_post": f"post_{i}", "comment": f"評語{i}", "teacher_note": "", "levels": {}}
@@ -330,6 +363,188 @@ class AuthTest(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 self.server.serve(open_browser=False)
             run.assert_not_called()
+
+
+def new_board_json(sections, title="802 攝影單元", posts=()):
+    return {"data": {"id": "newboard1234567890", "type": "board",
+                     "attributes": {"title": title, "webUrl": {
+                         "live": "https://padlet.com/pad02_98/802-newboard1234567890",
+                         "qrCode": "https://assets.padletcdn.com/padlets/newboard1234567890/qr_code.png"}}},
+            "included": [*[{"id": f"sec_{i}", "type": "section", "attributes": {"title": t, "sortIndex": 1}}
+                           for i, t in enumerate(sections)], *posts]}
+
+
+class PortalTest(unittest.TestCase):
+    """作業牆自動建立與後台（portal.py）：不連 Padlet、不呼叫模型。"""
+
+    def setUp(self):
+        import portal
+        self.portal = portal
+        self.tmp = Path(tempfile.mkdtemp())
+        (self.tmp / "rubrics").mkdir()
+        shutil.copy(EXAMPLE, self.tmp / "rubrics" / EXAMPLE.name)
+        for p in (mock.patch.object(store, "DATA", self.tmp / "data"), mock.patch.object(portal, "RUBRICS", self.tmp / "rubrics"),
+                  mock.patch.object(portal.time, "sleep")):
+            p.start()
+            self.addCleanup(p.stop)
+        portal._jobs.clear()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.tpl = portal.templates()[0]
+        self.form = {"template": self.tpl["id"], "class_name": " 802 ", "assignment": "攝影單元", "note": "截止日 10/3",
+                     "sections": ["① 微距攝影", " ② 人物攝影 ", "", "③ 風景攝影"]}
+
+    def _create(self, raw=None):
+        fake = mock.Mock()
+        fake.create_ai_board.return_value = "https://api.padlet.dev/v1/ai-recipe-boards/status/x"
+        fake.ai_board_status.side_effect = [("running", {}), ("done", {"id": "newboard1234567890"})]
+        fake.board.return_value = raw or new_board_json(["① 微距攝影", "② 人物攝影", "③ 風景攝影"])
+        job = self.portal.Job("create")
+        with mock.patch.object(padlet, "Client", return_value=fake):
+            return self.portal.create_board(self.portal.prepare(self.form), job), fake
+
+    def test_prepare_validates_and_builds_recipe(self):
+        p = self.portal.prepare(self.form)
+        self.assertEqual(p["title"], "802 攝影單元")
+        self.assertEqual(p["sections"], ["① 微距攝影", "② 人物攝影", "③ 風景攝影"], "空白的區段略過、前後空白去掉")
+        for sec in p["sections"]:
+            self.assertIn(f"「{sec}」", p["instructions"])
+        self.assertIn("恰好 3 個區段", p["instructions"])
+        self.assertIn("截止日 10/3", p["instructions"])
+        self.assertEqual(len(self.portal.prepare({**self.form, "sections": ["作品"]})["sections"]), 1, "老師可以自訂區段數量")
+        for bad in ({"class_name": ""}, {"assignment": "x" * 41}, {"template": "nope"}, {"note": "字" * 501},
+                    {"sections": []}, {"sections": [f"作業{i}" for i in range(9)]}, {"sections": ["作品", "作品 "]}):
+            with self.assertRaises(ValueError):
+                self.portal.prepare({**self.form, **bad})
+
+    def test_create_saves_record_and_hides_url_until_todos_done(self):
+        v, fake = self._create()
+        self.assertEqual(fake.ai_board_status.call_count, 2)
+        self.assertEqual(v["problems"], [])
+        self.assertFalse(v["ready"])
+        self.assertEqual((v["url"], v["qr"]), ("", ""), "待辦沒勾完不給學生網址與 QR")
+        self.assertTrue(v["admin_url"], "老師還是要能開牆去改設定")
+        with self.assertRaises(ValueError):
+            self.portal.qr_png(v["id"])
+        for k in self.portal.TODOS:
+            b = self.portal.set_todo(v["id"], k, True)
+        v = self.portal.view(b)
+        self.assertTrue(v["ready"])
+        self.assertTrue(v["url"].startswith("https://padlet.com/"))
+        self.assertEqual(self.portal.get(v["id"])["rubric"], "rubrics/範例-攝影三作業.toml")
+        self.assertEqual(self.portal.get(v["id"])["sections"], ["① 微距攝影", "② 人物攝影", "③ 風景攝影"])
+
+    def test_verify_reports_mismatch(self):
+        media = {"id": "p1", "type": "post", "attributes": {"author": None, "content": {"attachment": {"url": "https://x/1.jpg"}}}}
+        raw = new_board_json(["作品", "過程"], title="美術作業", posts=[media])
+        probs = self.portal.verify(raw, self.tpl["sections"], "802", "攝影單元")
+        self.assertEqual(len(probs), 3)
+        self.assertIn("區段是「作品」「過程」", probs[0])
+        self.assertIn("標題變成", probs[1])
+        self.assertIn("1 篇有圖片", probs[2])
+        # 區段順序從 API 看不出來（sortIndex 會重複），只比對名稱；順序交給手動待辦
+        secs = self.tpl["sections"]
+        self.assertEqual(self.portal.verify(new_board_json(secs[::-1], title="802 攝影單元"), secs, "802", "攝影單元"), [])
+
+    def test_rubric_save_checks_format_and_stays_in_folder(self):
+        ok_text = EXAMPLE.read_text(encoding="utf-8")
+        self.portal.save_rubric("..\\..\\802.toml", ok_text)
+        self.assertTrue((self.tmp / "rubrics" / "802.toml").exists(), "路徑只取檔名，寫在 rubrics/ 裡")
+        with self.assertRaises(ValueError):
+            self.portal.save_rubric("802.toml", ok_text)   # 同名要確認覆蓋
+        with self.assertRaises(ValueError) as e:
+            self.portal.save_rubric("802.toml", "title = 沒加引號", overwrite=True)
+        self.assertIn("802.toml", str(e.exception))
+        self.assertEqual((self.tmp / "rubrics" / "802.toml").read_text(encoding="utf-8"), ok_text, "格式錯不能蓋掉原檔")
+        self.assertEqual(sorted(p.name for p in (self.tmp / "rubrics").iterdir()), ["802.toml", EXAMPLE.name])
+        for bad in (".toml", "a.txt", "a|b.toml"):
+            with self.assertRaises(ValueError):
+                self.portal.rubric_file(bad)
+
+    def test_template_save_and_delete(self):
+        ts = self.portal.save_template({"name": "兩份作業", "sections": ["作品", " ", "過程"], "description": "", "rubric": ""})
+        self.assertEqual(ts[-1]["sections"], ["作品", "過程"])
+        with self.assertRaises(ValueError):
+            self.portal.save_template({"name": "重複", "sections": ["作品", "作品"]})
+        self.portal.delete_template(ts[-1]["id"])
+        with self.assertRaises(ValueError):
+            self.portal.delete_template(self.tpl["id"])   # 至少留一個
+
+    def test_one_grade_job_at_a_time(self):
+        gate = __import__("threading").Event()
+        self.portal.start("grade", lambda job: gate.wait(5), board="b1")
+        with self.assertRaises(ValueError):
+            self.portal.start("grade", lambda job: None, board="b2")
+        self.assertEqual(self.portal.busy(), {"b1"})
+        gate.set()
+
+    def test_review_edits_blocked_while_board_busy(self):
+        import server
+        server.app.secret_key = "x" * 64
+        gate = __import__("threading").Event()
+        self.portal.start("grade", lambda job: gate.wait(5), board="b1")
+        with mock.patch.dict(os.environ, {"GRADER_PASSWORD_HASH": ""}):
+            r = server.app.test_client().post("/api/board/b1/update", json={"sid": "s0"})
+        gate.set()
+        self.assertEqual(r.status_code, 409)
+
+    def test_api_key_only_sent_to_padlet(self):
+        cli = padlet.Client("k")
+        with mock.patch.object(padlet.requests, "request") as req:
+            with self.assertRaises(padlet.PadletError):
+                cli.ai_board_status("https://evil.example.com/v1/status/x")
+            req.assert_not_called()
+
+
+class SectionFetchTest(unittest.TestCase):
+    """一個區段一份作業：同一位學生在不同區段的貼文分開評，評語貼在各自區段的那一篇。"""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        p = mock.patch.object(store, "DATA", self.tmp)
+        p.start()
+        self.addCleanup(p.stop)
+        self.addCleanup(shutil.rmtree, self.tmp)
+
+    def _fetch(self, unit):
+        raw = board_json([
+            post("p1", "s01", "王小明", "12 王小明", "https://x/1.jpg", section="sec_1"),
+            post("p2", "s01", "王小明", "12 王小明", "https://x/2.jpg", section="sec_2"),
+            post("p3", "s02", "陳小華", "13 陳小華", "https://x/3.jpg", section="sec_2"),
+        ])
+        raw["included"][0]["attributes"].update(title="① 微距攝影", sortIndex=1)
+        raw["included"].insert(1, {"id": "sec_2", "type": "section", "attributes": {"title": "② 人物攝影", "sortIndex": 2}})
+        fake = mock.Mock()
+        fake.me.return_value = ME
+        fake.board.return_value = raw
+        dl = lambda posts, dest, n, client=None: ([f"{p['id']}_0.jpg" for p in posts], [])  # noqa: E731
+        with mock.patch.object(padlet, "Client", return_value=fake), mock.patch.object(padlet, "download_images", dl):
+            return workflow.fetch("https://padlet.com/x/abcd1234efgh5678", str(EXAMPLE), log=lambda *_: None, unit=unit)
+
+    def test_split_by_section(self):
+        st = self._fetch("auto")   # 範例 rubric 有 [[assignments]] → 自動用 section
+        self.assertEqual(st.state["unit"], "section")
+        got = {(s["name"], s["section"], s["assignment"], s["target_post"]) for s in st.students.values()}
+        self.assertEqual(got, {("王小明", "① 微距攝影", "微距攝影", "p1"), ("王小明", "② 人物攝影", "人物攝影", "p2"),
+                               ("陳小華", "② 人物攝影", "人物攝影", "p3")})
+        s = next(s for s in st.students.values() if s["target_post"] == "p2")
+        keys = [c.key for c in workflow.rubric_for(workflow.load_rubric(st), s).criteria]
+        self.assertEqual(keys, ["c1", "c2", "a2c1", "a2c2", "a2c3"], "人物攝影用共同＋人物的檢查點")
+
+    def test_student_unit_merges_sections(self):
+        st = self._fetch("student")
+        self.assertEqual(len(st.students), 2)
+        self.assertNotIn("section", next(iter(st.students.values())))
+
+    def test_export_has_assignment_column(self):
+        st = self._fetch("section")
+        for s in st.students.values():
+            s.update(ai={"criteria": {}}, levels={"c1": "符合"}, status="drafted", comment="很好")
+        with open(workflow.export_csv(st), encoding="utf-8-sig") as f:
+            head, *rows = list(__import__("csv").reader(f))
+        self.assertEqual(head[:5], ["學生", "作業", "狀態", "對焦清晰", "曝光適當"])
+        self.assertIn("微距攝影｜近距離主角", head)
+        self.assertIn("人物攝影｜神情動作", head)
+        self.assertEqual(len(rows), 3)
 
 
 if __name__ == "__main__":

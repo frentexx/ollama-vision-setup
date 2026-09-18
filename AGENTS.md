@@ -17,7 +17,7 @@
 | 目標機安裝＋驗收 | 2026-09-18（ppsh-VR-1） | 🟡 自動驗收全過，三項人工確認待做 |
 | 批改系統雛形（grade.py、審核頁） | 2026-09-18 | 🟡 已接真的 Padlet（讀取、下載、草稿 OK），「發布評語」尚未實測 |
 | 審核頁校內開放（方案 C：密碼＋防火牆） | 2026-09-18 | ✅ 美術老師可從校內連線 |
-| 作業牆自動建立網頁＋後台 | RDQ 規格卡 draft | ⬜ 等使用者確認 `rdq/RDQ-spec-padlet-assignment-portal-20260918.md` |
+| 作業牆自動建立網頁＋後台（`/portal`） | 2026-09-18 規格卡 confirmed（修訂 1：區段＝作業） | 🟡 已實作；真的建牆 17 秒通過（測試牆 `padlet.com/pad02_98/padlet-s023p27e54sox5ezh9aj`）；學生上傳→分區段批改→發布還沒實測 |
 | rubric 分層＋一致率報告＋檢查點題庫 | 方向已定 | ⬜ 等美術老師用文字給一份作業標準 |
 | 用 5 份真實作品試評語 | 等美術老師提供規準 | ⬜ |
 
@@ -30,8 +30,9 @@ ollama-vision-setup/
 ├── scripts/         00～50 依序執行的 PowerShell，run-all.ps1 一次跑完
 ├── tools/           vision.py 共用模組、vision_smoke.py 手動試跑
 ├── grade.py         批改系統入口（run／fetch／draft／review／export／check）
-├── grader/          批改系統：padlet.py、rubric.py、feedback.py、workflow.py、server.py、static/review.html
-├── rubrics/         每份作業的評分規準（TOML），範例-色彩練習.toml
+├── grader/          批改系統：padlet.py、rubric.py、feedback.py、workflow.py、server.py、static/review.html；
+│                    portal.py＋static/portal.html＝作業牆管理（建牆、範本、rubric、背景抓作業）
+├── rubrics/         評分規準（TOML），範例-攝影三作業.toml（共同檢查點＋[[assignments]] 各區段作業）
 ├── GRADING.md       批改系統使用說明（給老師看）
 ├── docs/            方案說明（給美術老師檢視）
 ├── rdq/             RDQ 需求規格卡（status: draft 的不得動工）
@@ -70,6 +71,10 @@ ollama-vision-setup/
 - 審核頁預設只綁 `127.0.0.1:8765`。要給美術老師從校內其他電腦用（方案 C）：`.env` 設 `GRADER_HOST=0.0.0.0`，**必須先** `grade.py set-password`（沒密碼伺服器會拒絕啟動）；防火牆規則由使用者以系統管理員身分自己加，只允許 LocalSubnet。密碼只存雜湊，Claude 不經手密碼
 - 學生繳交的實測狀況：會把照片「留言」在說明卡底下、標題亂寫（例如只寫「33」、寫別人名字），所以分組一律以 Padlet 帳號／名字為準，標題只當參考並提醒老師
 - AI 建板（create_board）產生的說明卡 author 是 null；新版子預設關閉留言
+- **一個區段＝一份作業**（2026-09-18 使用者定案）：建牆時老師設定區段數量與名稱；批改單位是「學生×區段」，評語留在該區段那篇。rubric 用 `[[assignments]]`（name 對應區段名稱，包含即算）＋共同 `[[criteria]]`；沒有 assignments 的舊 rubric 走「整面牆一份作業」（unit=student）
+- rubric 的 `work` 定義「什麼算作品」，判斷請重傳用；不可寫死「拍到人物就不是作品」（人物攝影會被誤判）
+- 作業牆管理（`/portal`）用 AI Recipe 建牆；API 不能改牆的設定，所以「開留言、關貼文審核、確認版型」是老師手動待辦，三項勾完才給學生網址／QR。AI 建的欄位 sortIndex 會重複，讀回檢查只比對欄位名稱，順序靠人工確認
+- 帶 Padlet key 的請求只准送 `api.padlet.dev/v1/` 與 `padlet.dev/api/public/v1/`（padlet.py 的 TRUSTED），statusUrl 是 Padlet 回傳的網址，一律先檢查
 - Padlet MCP（mathruffian-dot/padlet-mcp，**鎖定 commit 8b1ac45**＝0.2.0，已審查）設定在上層 `D:\fuwen\地端LLM\.mcp.json`，key 由使用者環境變數 `PADLET_API_KEY` 提供；更新版本前要先審查新版程式碼
 - 測試看板：`https://padlet.com/pad02_98/202609-s023ouxqszxj3kriwhu2`（202609美術課程作業繳交，三欄：全貌／特寫／過程）
 - 批改的 prompt 經驗（qwen3-vl 8B）：JSON 欄位要「evidence 在 level 前面」，等級才會跟觀察一致；模型常把沒做到的地方當優點稱讚，所以 feedback.py 有一道檢查，被抓到就只重寫那一句

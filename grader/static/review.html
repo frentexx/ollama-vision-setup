@@ -4,96 +4,78 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>評語審核</title>
+<link rel="stylesheet" href="/theme.css">
 <style>
-  :root {
-    --bg: #f6f5f2; --card: #fff; --ink: #1f2328; --muted: #6b7078; --line: #e3e1dc;
-    --accent: #2f6f5e; --accent-ink: #fff; --warn: #9a5b00; --warn-bg: #fff4de;
-    --bad: #a3322b; --ok: #2f6f5e; --ok-bg: #e5f2ee; --chip: #eeece7;
-  }
-  * { box-sizing: border-box; }
-  [hidden] { display: none !important; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 "Microsoft JhengHei", "PingFang TC", system-ui, sans-serif; }
-  header { position: sticky; top: 0; z-index: 5; background: var(--card); border-bottom: 1px solid var(--line); padding: 10px 20px; }
-  .bar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; max-width: 1280px; margin: 0 auto; }
-  h1 { font-size: 18px; margin: 0; }
-  .sub { color: var(--muted); font-size: 13px; }
-  .spacer { flex: 1; }
-  button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
-  button:hover:not(:disabled) { border-color: #b9b5ad; }
-  button:disabled { opacity: .45; cursor: default; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-  button.danger { color: var(--bad); }
-  select, textarea, input { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
-  textarea { width: 100%; resize: vertical; min-height: 110px; line-height: 1.7; padding: 8px 10px; }
-  input.note { width: 100%; padding: 6px 10px; }
-  main { max-width: 1280px; margin: 0 auto; padding: 16px 20px 80px; }
-  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
-  .tabs button { border-radius: 999px; padding: 3px 12px; font-size: 14px; }
-  .tabs button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 16px; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); overflow: hidden; }
+  main { max-width: 1240px; margin: 0 auto; padding: 30px 20px 90px; }
+  .intro h1 { font-size: 26px; margin: 0 0 2px; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: center; margin: 16px 0 22px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  textarea { width: 100%; resize: vertical; min-height: 110px; line-height: 1.75; padding: 10px 12px; }
+  input.note { width: 100%; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; margin-bottom: 18px; display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); overflow: hidden; }
   .card.done { opacity: .72; }
   @media (max-width: 860px) { .card { grid-template-columns: 1fr; } }
-  .pics { background: #22252a; display: grid; gap: 4px; padding: 4px; align-content: start; }
-  .pics img { width: 100%; max-height: 380px; object-fit: contain; cursor: zoom-in; background: #111; border-radius: 4px; }
-  .body { padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .pics { background: #23231f; display: grid; gap: 4px; padding: 4px; align-content: start; }
+  .pics img { width: 100%; max-height: 380px; object-fit: contain; cursor: zoom-in; background: #151512; }
+  .body { padding: 18px 22px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
   .head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-  .name { font-size: 17px; font-weight: 700; }
-  .badge { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--chip); color: var(--muted); }
+  .name { font: 500 19px var(--serif); }
+  .badge { font-size: 12px; padding: 1px 9px; border-radius: 3px; background: var(--chip); color: var(--muted); }
+  .badge.sec { background: var(--gold-soft); color: var(--gold-dark); }
   .badge.approved { background: var(--ok-bg); color: var(--ok); }
-  .badge.posted { background: var(--ok); color: #fff; }
-  .badge.error { background: #fbe7e5; color: var(--bad); }
+  .badge.posted { background: var(--green); color: #fff; }
+  .badge.error { background: var(--bad-bg); color: var(--bad); }
   .flags { display: flex; flex-wrap: wrap; gap: 6px; }
-  .flag { font-size: 13px; background: var(--warn-bg); color: var(--warn); border-radius: 6px; padding: 1px 8px; }
+  .flag { padding: 1px 9px; }
   .desc { color: var(--muted); font-size: 14px; }
   table { border-collapse: collapse; width: 100%; font-size: 14px; }
-  td { border-top: 1px solid var(--line); padding: 5px 6px; vertical-align: top; }
-  td.cn { white-space: nowrap; font-weight: 600; width: 1%; }
+  td { border-top: 1px solid var(--line); padding: 6px; vertical-align: top; }
+  td.cn { white-space: nowrap; font-weight: 500; width: 1%; }
   td.lv { width: 1%; }
   td.ev { color: var(--muted); }
   .teacher { font-size: 11px; color: var(--warn); display: block; font-weight: 400; }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .mode button { border-radius: 0; margin-left: -1px; }
-  .mode button:first-child { border-radius: 8px 0 0 8px; }
-  .mode button:last-child { border-radius: 0 8px 8px 0; }
-  .mode button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .mode button:first-child { border-radius: 4px 0 0 4px; }
+  .mode button:last-child { border-radius: 0 4px 4px 0; }
+  .mode button.on { background: var(--green); color: #fff; border-color: var(--green); }
   .label { font-size: 13px; color: var(--muted); }
-  .preview { background: var(--bg); border-radius: 8px; padding: 8px 12px; font-size: 14px; }
+  .preview { background: var(--bg); border-radius: 3px; padding: 10px 14px; font-size: 14px; }
   .preview p { margin: 0 0 4px; }
-  .score { font-weight: 700; }
+  .score { font: 500 16px var(--serif); color: var(--gold-dark); }
   .hint { font-size: 13px; color: var(--warn); }
-  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; margin-bottom: 16px; }
-  .panel h2 { font-size: 16px; margin: 0 0 8px; }
-  .panel h3 { font-size: 14px; margin: 10px 0 4px; }
+  .panel h3 { font-size: 15px; margin: 12px 0 4px; }
   .panel ul { margin: 0; padding-left: 20px; }
   .stats { overflow-x: auto; }
-  .stats td, .stats th { padding: 3px 10px; border-top: 1px solid var(--line); text-align: center; font-size: 13px; white-space: nowrap; }
-  .stats th { font-weight: 600; }
+  .stats td, .stats th { padding: 4px 12px; border-top: 1px solid var(--line); text-align: center; font-size: 13px; white-space: nowrap; }
+  .stats th { font-weight: 500; }
   .stats td:first-child { text-align: left; }
-  #zoom { position: fixed; inset: 0; background: rgba(0,0,0,.88); display: flex; align-items: center; justify-content: center; z-index: 20; cursor: zoom-out; }
+  #zoom { position: fixed; inset: 0; background: rgba(20,20,18,.9); display: flex; align-items: center; justify-content: center; z-index: 20; cursor: zoom-out; }
   #zoom img { max-width: 96vw; max-height: 96vh; }
-  #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 8px 16px; border-radius: 8px; z-index: 30; max-width: 90vw; }
-  #busy { position: fixed; inset: 0; background: rgba(246,245,242,.6); z-index: 25; display: flex; align-items: center; justify-content: center; font-size: 16px; }
-  .empty { text-align: center; color: var(--muted); padding: 40px; }
-  a { color: var(--accent); }
+  #busy { position: fixed; inset: 0; background: rgba(248,246,241,.7); z-index: 25; display: flex; align-items: center; justify-content: center; font: 500 17px var(--serif); }
 </style>
 </head>
 <body>
-<header>
+<header class="site">
   <div class="bar">
-    <div>
-      <h1 id="title">評語審核</h1>
-      <div class="sub" id="subtitle"></div>
-    </div>
-    <select id="boardSel" title="切換作業版" hidden></select>
-    <div class="spacer"></div>
-    <span class="sub" id="counts"></span>
-    <button id="btnSummary">全班摘要</button>
-    <button id="btnExport">匯出成績 CSV</button>
-    <button id="btnPublish" class="primary">發布已核准</button>
-    <a class="sub" href="/logout" id="logout">登出</a>
+    <a class="brand" href="/"><span class="mark">評</span><span><b>AI 評語小幫手</b><small>Art Feedback Assistant</small></span></a>
+    <nav class="nav"><a href="/" class="on">評語審核</a><a href="/portal">作業牆管理</a><a href="/logout" id="logout">登出</a></nav>
   </div>
 </header>
 <main>
+  <div class="intro">
+    <p class="eyebrow">Feedback Review</p>
+    <h1 id="title">評語審核</h1>
+    <div class="sub" id="subtitle"></div>
+  </div>
+  <div class="toolbar">
+    <select id="boardSel" title="切換作業牆" hidden></select>
+    <span class="sub" id="counts"></span>
+    <span class="spacer"></span>
+    <button id="btnSummary">全班摘要</button>
+    <button id="btnExport">匯出成績 CSV</button>
+    <button id="btnPublish" class="primary">發布已核准</button>
+  </div>
   <div id="summary"></div>
   <div class="tabs" id="tabs"></div>
   <div id="list"></div>
@@ -131,7 +113,7 @@ async function api(path, body) {
 
 async function load(id) {
   const boards = await api("/api/boards");
-  if (!boards.length) { $("#list").innerHTML = '<div class="empty">還沒有任何作業版，請先執行 grade.py run</div>'; return; }
+  if (!boards.length) { $("#list").innerHTML = '<div class="empty">還沒有任何作業版。到<a href="/portal?tab=boards">作業牆管理</a>按「抓作業＋寫草稿」，或執行 grade.py run</div>'; return; }
   boardId = id || new URLSearchParams(location.search).get("board") || boards[0].id;
   const sel = $("#boardSel");
   sel.innerHTML = boards.map(b => `<option value="${esc(b.id)}">${esc(b.title)}（${b.n} 位）</option>`).join("");
@@ -162,7 +144,7 @@ function render() {
 function card(s) {
   const R = B.rubric, locked = ["approved", "posted", "skipped"].includes(s.status);
   const opts = [...R.levels, UNKNOWN];
-  const rows = R.criteria.map(c => {
+  const rows = s.criteria.map(c => {
     const ev = s.ai?.criteria?.[c.key]?.evidence || (c.ai ? "" : "請老師判斷");
     const cur = s.levels[c.key] || "";
     return `<tr><td class="cn">${esc(c.name)}${c.ai ? "" : '<span class="teacher">老師判斷</span>'}</td>
@@ -185,13 +167,13 @@ function card(s) {
   return `<section class="card ${locked ? "done" : ""}" data-sid="${esc(s.key)}">
     <div class="pics">${s.images.map(p => `<img loading="lazy" src="/img/${encodeURIComponent(boardId)}/${p.split("/").map(encodeURIComponent).join("/")}" alt="">`).join("") || '<div class="empty">沒有照片</div>'}</div>
     <div class="body">
-      <div class="head"><span class="name">${esc(s.name)}</span><span class="badge ${s.status}">${STATUS[s.status]}</span>
+      <div class="head"><span class="name">${esc(s.name)}</span>${s.section ? `<span class="badge sec">${esc(s.section)}</span>` : ""}<span class="badge ${s.status}">${STATUS[s.status]}</span>
         ${s.web_url ? `<a class="sub" href="${esc(s.web_url)}" target="_blank">Padlet 貼文</a>` : ""}<span class="spacer"></span>${score}</div>
       ${s.error ? `<div class="flag" style="color:var(--bad)">${esc(s.error)}</div>` : ""}
       ${s.flags.length ? `<div class="flags">${s.flags.map(f => `<span class="flag">${esc(f)}</span>`).join("")}</div>` : ""}
       ${s.body ? `<div class="desc">學生說明：${esc(s.body)}</div>` : ""}
       ${s.ai ? `<div class="desc">AI 看到：${esc(s.ai.description)}${strengths ? `<br>優點：${strengths}` : ""}</div>` : ""}
-      ${s.ai || R.criteria.some(c => !c.ai) ? `<table>${rows}</table>` : ""}
+      ${s.ai || s.criteria.some(c => !c.ai) ? `<table>${rows}</table>` : ""}
       ${dirty.has(s.key) ? '<div class="hint">等級改過了，按「重寫評語」讓評語跟著調整</div>' : ""}
       ${s.status !== "new" && s.status !== "error" ? `
       <div class="row"><span class="label">評語方向</span><span class="mode">${modeBtns}</span></div>
@@ -273,7 +255,7 @@ $("#boardSel").onchange = e => { history.replaceState(null, "", `?board=${encode
 $("#btnSummary").onclick = async () => { try { B = await api(`/api/board/${encodeURIComponent(boardId)}/summary`, {}); render(); window.scrollTo(0, 0); } catch (e) { toast(e.message, 6000); } };
 $("#btnExport").onclick = () => { location.href = `/api/board/${encodeURIComponent(boardId)}/export`; };
 $("#btnPublish").onclick = async () => {
-  const names = B.students.filter(s => s.status === "approved").map(s => s.name);
+  const names = B.students.filter(s => s.status === "approved").map(s => s.name + (s.section ? `（${s.section}）` : ""));
   const ok = prompt(`即將把 ${names.length} 則評語留言到 Padlet：\n${names.join("、")}\n\n發布後無法從這裡撤回，要修改得到 Padlet 上手動處理。\n確定要發布，請輸入「發布」兩個字：`);
   if (ok !== "發布") return;
   try {

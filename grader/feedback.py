@@ -88,9 +88,9 @@ def judge_prompt(rb: Rubric, n_images: int, labels=None) -> str:
             lines.append(f"    · {lv}：{note}")
     lines += ["",
               "另外請寫：",
-              "- description：客觀描述照片拍到什麼、使用的媒材，80 字內",
-              "- is_artwork：這些照片中，有沒有至少一張拍的是學生的作品本身（畫作、立體作品等）？"
-              "如果全部都是教室、人物、網路圖片或與作業無關的東西，填 false；草稿或創作過程照不算無關",
+              "- description：客觀描述照片拍到什麼（美術作品請說明媒材），80 字內",
+              f"- is_artwork：這些照片中，有沒有至少一張是這份作業要求的學生作品？這份作業的作品是：{rb.work}。"
+              "如果全部都是與作業無關的東西（例如網路下載的圖片、螢幕截圖、拍錯東西），填 false",
               "- strengths：1～3 個畫面上具體的優點，where 寫位置，what 寫看到什麼、好在哪",
               "- photo_issue：照片本身的問題（太暗、斜拍、反光、模糊、沒拍到整張），沒有就填空字串"]
     return "\n".join(lines)
@@ -176,7 +176,7 @@ def compose(rb: Rubric, ai: dict, levels: dict, mode: str, teacher_hint: str = "
     for _ in range(2):   # 肯定句有問題：只重寫這一句，提問保留
         if not bad:
             break
-        new, t = safe_praise(ai, not_ok, rb.tone)
+        new, t = safe_praise(ai, not_ok, rb)
         secs += t
         if new:
             p["praise"] = new
@@ -197,14 +197,14 @@ def compose(rb: Rubric, ai: dict, levels: dict, mode: str, teacher_hint: str = "
             "praise_conflict": bad, "seconds": round(secs, 1)}
 
 
-def safe_praise(ai: dict, not_ok: list, tone: str) -> tuple:
-    """重寫肯定句：只准稱讚技巧與用心，避開所有還沒做到的項目。回傳 (句子, 秒數)。"""
+def safe_praise(ai: dict, not_ok: list, rb: Rubric) -> tuple:
+    """重寫肯定句：只准從 rubric 的 praise_angles 挑角度稱讚，避開所有還沒做到的項目。回傳 (句子, 秒數)。"""
     prompt = "\n".join([
         f"畫面描述：{ai.get('description', '')}",
         "這位學生還沒做到的地方（完全不要提，也不要換句話說成優點）：", *[f"- {x}" for x in not_ok], "",
         "請寫一句給學生的肯定句（30 字內，用「你」稱呼），只能從下面這些角度挑一個具體稱讚：",
-        "塗色是否均勻、邊緣是否乾淨俐落、形狀是否完整、媒材運用、完成度、看得出的用心。",
-        "不要用「醒目」「焦點」「搶眼」「突出」「吸引目光」「構圖」「位置」「對比」這些字。", f"語氣：{tone}"])
+        "、".join(rb.praise_angles) + "。",
+        "不要用「醒目」「焦點」「搶眼」「突出」「吸引目光」「構圖」「位置」「對比」這些字。", f"語氣：{rb.tone}"])
     r = vision.chat([], prompt, fmt={"type": "object", "properties": {"praise": {"type": "string"}},
                                      "required": ["praise"]},
                     num_predict=120, temperature=0.4, system=COMPOSE_SYSTEM)
@@ -249,21 +249,24 @@ SUMMARY_SCHEMA = {
 }
 
 
-def class_summary(rb: Rubric, students: list) -> dict:
-    """students：[{levels, ai}]。先統計各檢查點的等級分布，再請模型整理全班亮點與常見問題。"""
+def class_summary(rb: Rubric, students: list, rubric_of=None) -> dict:
+    """students：[{levels, ai}]。先統計各檢查點的等級分布，再請模型整理全班亮點與常見問題。
+    rubric_of(s)：每份作品用的 rubric（一面牆有好幾份作業時，各區段的檢查點不同），統計會標上作業名稱。"""
+    rubric_of = rubric_of or (lambda s: rb)
     stats = {}
-    for c in rb.criteria:
-        cnt = {lv: 0 for lv in rb.levels + [UNKNOWN, NOT_GRADED]}
-        for s in students:
+    for s in students:
+        r = rubric_of(s)
+        for c in r.criteria:
+            label = f"{r.assignment}｜{c.name}" if r.assignment and c.key.startswith("a") else c.name
+            cnt = stats.setdefault(label, {lv: 0 for lv in rb.levels + [UNKNOWN, NOT_GRADED]})
             cnt[s["levels"].get(c.key) or NOT_GRADED] += 1
-        stats[c.name] = cnt
     notes = []
     for i, s in enumerate(students, 1):
-        ai = s.get("ai") or {}
+        ai, r = s.get("ai") or {}, rubric_of(s)
         st = "；".join(f"{x['where']}{x['what']}" for x in ai.get("strengths", []))
         ev = "；".join(f"{c.name}:{s['levels'].get(c.key, UNKNOWN)}({(ai.get('criteria', {}).get(c.key) or {}).get('evidence', '')})"
-                      for c in rb.criteria)
-        notes.append(f"{i}. 優點：{st}｜{ev}")
+                      for c in r.criteria)
+        notes.append(f"{i}. {r.assignment + '｜' if r.assignment else ''}優點：{st}｜{ev}")
     prompt = "\n".join([
         f"作業：{rb.title}（{rb.task}）", "",
         "各檢查點等級人數：", json.dumps(stats, ensure_ascii=False), "",

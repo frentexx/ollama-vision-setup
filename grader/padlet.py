@@ -17,6 +17,8 @@ import requests
 from PIL import Image
 
 API = "https://api.padlet.dev/v1"
+# AI 建牆的進度網址實測是 api.padlet.dev/v1/ai-recipe-boards/status/<id>；官方文件寫的是 padlet.dev/api/public/v1，一併放行
+TRUSTED = (API + "/", "https://padlet.dev/api/public/v1/")
 IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".gif", ".bmp"}
 
 
@@ -40,8 +42,11 @@ class Client:
             raise PadletError("沒有 PADLET_API_KEY：請到 https://padlet.com/dashboard/settings/developers 產生，填進 .env")
 
     def _req(self, method, path, **kw):
+        url = path if path.startswith("https://") else f"{API}{path}"
+        if not url.startswith(TRUSTED):   # API key 只送官方 API（statusUrl 是 Padlet 回傳的網址，要先檢查）
+            raise PadletError(f"拒絕把 API key 送到非官方網址：{url.split('?')[0]}")
         for attempt in range(3):
-            r = requests.request(method, f"{API}{path}", headers={"X-API-KEY": self.key}, timeout=30, **kw)
+            r = requests.request(method, url, headers={"X-API-KEY": self.key}, timeout=30, **kw)
             if r.status_code == 429 and attempt < 2:   # 每分鐘 250 次上限
                 time.sleep(20)
                 continue
@@ -68,6 +73,25 @@ class Client:
     def comment(self, post_id: str, html_content: str) -> dict:
         body = {"data": {"type": "comment", "attributes": {"htmlContent": html_content}}}
         return self._req("POST", f"/posts/{post_id}/comments", json=body)["data"]
+
+    def create_ai_board(self, instructions: str, role: str = "teacher") -> str:
+        """用 AI Recipe 建牆（非同步），回傳查進度的 statusUrl。指令上限 2000 字。"""
+        body = {"data": {"type": "ai_recipe_board",
+                         "attributes": {"boardCreationInstructions": instructions, "role": role}}}
+        url = self._req("POST", "/ai-recipe-boards", json=body).get("data", {}).get("attributes", {}).get("statusUrl")
+        if not url:
+            raise PadletError("Padlet 收到建牆要求，但沒有回傳進度網址")
+        return url
+
+    def ai_board_status(self, status_url: str) -> tuple:
+        """回傳 (狀態, board)。實測狀態 in_progress → success，完成後 board 在 attributes.board。"""
+        a = self._req("GET", status_url).get("data", {}).get("attributes", {})
+        state = (a.get("status") or "").lower()
+        if state in ("success", "succeeded", "completed", "complete", "done"):
+            return "done", a.get("board") or {}
+        if state in ("failed", "error"):
+            return "failed", {}
+        return "running", {}
 
 
 # ---------------------------------------------------------------- 解析與分組

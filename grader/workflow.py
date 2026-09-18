@@ -20,6 +20,11 @@ def load_rubric(st: Store) -> rubric_mod.Rubric:
     return rubric_mod.load(p if p.is_absolute() else ROOT / p)
 
 
+def rubric_for(rb: rubric_mod.Rubric, s: dict) -> rubric_mod.Rubric:
+    """每個區段一份作業時，這份作品用「共同檢查點＋該區段作業的檢查點」；整面牆一份作業時就是 rb 本身。"""
+    return rb.for_section(s["section"]) if "section" in s else rb
+
+
 def _rel(p: Path) -> str:
     p = Path(p).resolve()
     try:
@@ -29,9 +34,25 @@ def _rel(p: Path) -> str:
 
 
 # ---------------------------------------------------------------- 1. 抓作業
-def fetch(source: str, rubric_path: str, group_by: str = "auto", log=print) -> Store:
-    """source：Padlet 網址／board id，或本機資料夾（每位學生一個子資料夾）。已存在的學生保留原本的草稿與審核結果。"""
-    rubric_mod.load(rubric_path)   # 先確認 rubric 寫得對，免得跑到一半才出錯
+def split_by_section(groups) -> list:
+    """每個區段是一份作業：把每位學生的貼文再依區段拆開，一份作品一張審核卡、評語留在該區段那篇。"""
+    out = []
+    for g in groups:
+        by = {}
+        for p in g["posts"]:
+            by.setdefault(p.get("section", ""), []).append(p)
+        for sec, posts in sorted(by.items(), key=lambda kv: kv[1][0].get("section_order", 0)):
+            out.append({"key": f"{g['key']}|{sec}", "name": g["name"], "section": sec, "posts": posts})
+    return out
+
+
+def fetch(source: str, rubric_path: str, group_by: str = "auto", log=print, unit: str = "auto") -> Store:
+    """source：Padlet 網址／board id，或本機資料夾（每位學生一個子資料夾）。已存在的學生保留原本的草稿與審核結果。
+    unit：section＝每個區段是一份作業（每位學生每個區段評一次）；student＝整面牆一份作業（各區段的照片合起來評）；
+    auto＝rubric 有 [[assignments]] 就用 section。"""
+    rb = rubric_mod.load(rubric_path)   # 先確認 rubric 寫得對，免得跑到一半才出錯
+    if unit == "auto":
+        unit = "section" if rb.assignments else "student"
     src = Path(source)
     if src.is_dir():
         board, me, cli = padlet.local_board(src), None, None
@@ -40,11 +61,15 @@ def fetch(source: str, rubric_path: str, group_by: str = "auto", log=print) -> S
         me = cli.me()
         board = padlet.parse_board(cli.board(padlet.board_id_from(source)), me)
     used, groups = padlet.group_posts(board["posts"], group_by)
+    n_students = len(groups)
+    if unit == "section":
+        groups = split_by_section(groups)
 
     st = Store(board["id"])
     st.state.update({"board": {k: board[k] for k in ("id", "title", "url")}, "source": "local" if me is None else "padlet",
-                     "rubric_path": _rel(rubric_path), "group_by": used, "fetched_at": now()})
-    log(f"作業版「{board['title']}」：{len(board['posts'])} 篇貼文，依「{used}」分成 {len(groups)} 位學生")
+                     "rubric_path": _rel(rubric_path), "group_by": used, "unit": unit, "fetched_at": now()})
+    log(f"作業版「{board['title']}」：{len(board['posts'])} 篇貼文，依「{used}」分成 {n_students} 位學生"
+        + (f"、{len(groups)} 份作品" if unit == "section" else ""))
 
     for i, g in enumerate(groups):
         s = st.students.get(g["key"])
@@ -73,6 +98,8 @@ def fetch(source: str, rubric_path: str, group_by: str = "auto", log=print) -> S
         if len(own) < len(g["posts"]):
             problems.append("有照片是留言在老師說明卡底下（不是新貼文）" +
                             ("" if own else "，評語無法自動貼回，請手動回覆或請學生改用＋新增貼文"))
+        if unit == "section" and not rb.for_section(g["section"]).criteria:
+            problems.append(f"區段「{g['section'] or '（沒有區段）'}」在評分規準裡沒有對應的作業，也沒有共同檢查點")
         st.students[g["key"]] = {
             "key": g["key"], "name": g["name"], "order": i, "post_ids": post_ids,
             "target_post": own[0]["id"] if own else None, "web_url": g["posts"][0]["web_url"],
@@ -85,7 +112,10 @@ def fetch(source: str, rubric_path: str, group_by: str = "auto", log=print) -> S
             "ai": None, "levels": {}, "mode": "", "comment": "", "teacher_note": "", "flags": [],
             "history": [f"{now()} 抓取 {len(files)} 張照片"],
         }
-        log(f"  {g['name']}：{len(files)} 張" + (f"（{'；'.join(problems)}）" if problems else ""))
+        if unit == "section":   # 一份作業只在一個區段，不用標每張照片來自哪一欄
+            st.students[g["key"]].update(section=g["section"], assignment=rb.for_section(g["section"]).assignment,
+                                         image_labels=[])
+        log(f"  {_label(st.students[g['key']])}：{len(files)} 張" + (f"（{'；'.join(problems)}）" if problems else ""))
     # Padlet 上已經找不到的學生（貼文被刪、分組方式變了）：還沒處理的直接移除；已核准／已發布的保留並提醒
     current = {g["key"] for g in groups}
     for k in [k for k in st.students if k not in current]:
@@ -107,8 +137,10 @@ def _safe(s: str) -> str:
 # ---------------------------------------------------------------- 2. 產生草稿
 def draft_one(st: Store, sid: str, rb=None, rejudge: bool = True, teacher_hint: str = "") -> dict:
     """rejudge=True：重新看圖＋寫留言；False：沿用老師改過的等級，只重寫留言。"""
-    rb = rb or load_rubric(st)
     s = st.students[sid]
+    rb = rubric_for(rb or load_rubric(st), s)
+    if not rb.criteria:
+        raise ValueError(f"區段「{s.get('section', '')}」在評分規準裡沒有對應的作業，也沒有共同檢查點")
     if rejudge or not s.get("ai"):
         s["ai"] = feedback.judge(rb, [st.images / p for p in s["images"]], s.get("image_labels"))
         # 老師負責的項目（ai = false）保留老師已選的，沒選過就留空等老師在審核頁選
@@ -156,11 +188,11 @@ def draft_all(st: Store, redo: bool = False, log=print):
     for i, s in enumerate(todo, 1):
         try:
             draft_one(st, s["key"], rb)
-            log(f"  [{i}/{len(todo)}] {s['name']}：{s['mode']}，{s['ai']['seconds'] + 0:.0f} 秒")
+            log(f"  [{i}/{len(todo)}] {_label(s)}：{s['mode']}，{s['ai']['seconds'] + 0:.0f} 秒")
         except Exception as e:
             s["status"], s["error"] = "error", f"{type(e).__name__}: {e}"[:300]
             st.save()
-            log(f"  [{i}/{len(todo)}] {s['name']}：失敗 {s['error']}")
+            log(f"  [{i}/{len(todo)}] {_label(s)}：失敗 {s['error']}")
     log(f"草稿完成 {len(todo)} 位，共 {(time.perf_counter() - t0) / 60:.1f} 分鐘")
 
 
@@ -177,7 +209,7 @@ def publish(st: Store, sids=None, log=print) -> dict:
             continue
         if not s.get("target_post"):
             s["error"] = "這位學生只用留言繳交，沒有自己的貼文可以貼評語，請到 Padlet 手動回覆"
-            fail.append(f"{s['name']}（沒有可貼評語的貼文）")
+            fail.append(f"{_label(s)}（沒有可貼評語的貼文）")
             st.save()
             continue
         try:
@@ -185,14 +217,18 @@ def publish(st: Store, sids=None, log=print) -> dict:
             c = cli.comment(s["target_post"], html)
             s["status"], s["posted"] = "posted", {"comment_id": c["id"], "at": now(), "html": html}
             st.log(s["key"], "已發布到 Padlet")
-            ok.append(s["name"])
+            ok.append(_label(s))
         except Exception as e:
             s["error"] = f"發布失敗：{e}"[:300]
-            fail.append(f"{s['name']}（{e}）")
+            fail.append(f"{_label(s)}（{e}）")
         st.save()   # 每發一則就存，中途斷掉也不會重複發
         time.sleep(0.3)
     log(f"發布成功 {len(ok)} 則" + (f"，失敗 {len(fail)} 則：{'；'.join(fail)}" if fail else ""))
     return {"ok": ok, "fail": fail}
+
+
+def _label(s: dict) -> str:
+    return s["name"] + (f"｜{s['section']}" if s.get("section") else "")
 
 
 # ---------------------------------------------------------------- 4. 摘要與成績
@@ -201,20 +237,32 @@ def summarize(st: Store) -> dict:
     done = [s for s in st.ordered() if s.get("ai") and s["status"] != "skipped"]
     if not done:
         raise ValueError("還沒有任何草稿")
-    st.state["summary"] = {**feedback.class_summary(rb, done), "at": now(), "n": len(done)}
+    st.state["summary"] = {**feedback.class_summary(rb, done, lambda s: rubric_for(rb, s)), "at": now(), "n": len(done)}
     st.save()
     return st.state["summary"]
 
 
 def export_csv(st: Store) -> Path:
+    """每份作品一列。一面牆有好幾份作業時，各作業的檢查點不同，欄位取全部的聯集，沒有的留空。"""
     rb = load_rubric(st)
+    rows = [(s, rubric_for(rb, s)) for s in st.ordered()]
+    cols = []   # (欄名, 檢查點 key)
+    for _, r in rows:
+        for c in r.criteria:
+            col = (f"{r.assignment}｜{c.name}" if r.assignment and c.key.startswith("a") else c.name, c.key)
+            if col not in cols:
+                cols.append(col)
+    per_section = st.state.get("unit") == "section"
     out = st.dir / f"成績-{rb.title}.csv"
     with out.open("w", encoding="utf-8-sig", newline="") as f:   # utf-8-sig：Excel 直接開不會亂碼
         w = csv.writer(f)
-        w.writerow(["學生", "狀態", *[c.name for c in rb.criteria], *(["得分", "滿分", "未評項目"] if rb.points else []), "評語"])
-        for s in st.ordered():
-            sc = rb.score(s["levels"]) if s.get("ai") else None   # 沒有草稿（沒照片）的不算分
-            w.writerow([s["name"], s["status"], *[s["levels"].get(c.key, "") for c in rb.criteria],
+        w.writerow(["學生", *(["作業"] if per_section else []), "狀態", *[n for n, _ in cols],
+                    *(["得分", "滿分", "未評項目"] if rb.points else []), "評語"])
+        for s, r in rows:
+            sc = r.score(s["levels"]) if s.get("ai") else None   # 沒有草稿（沒照片）的不算分
+            mine = {c.key for c in r.criteria}
+            w.writerow([s["name"], *([s.get("section", "")] if per_section else []), s["status"],
+                        *[s["levels"].get(k, "") if k in mine else "" for _, k in cols],
                         *([sc[0], sc[1], "、".join(sc[2])] if sc else ["", "", ""] if rb.points else []),
                         (s["comment"] + ("\n" + s["teacher_note"] if s.get("teacher_note") else ""))])
     return out

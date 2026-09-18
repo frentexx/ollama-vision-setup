@@ -2,6 +2,7 @@
 .env 設 GRADER_HOST=0.0.0.0 可開放校內網路（方案 C），但必須先用 grade.py set-password 設密碼。"""
 import functools
 import html
+import io
 import os
 import threading
 from pathlib import Path
@@ -10,6 +11,8 @@ from flask import Flask, abort, jsonify, redirect, request, send_file, send_from
 
 import auth
 import feedback
+import padlet
+import portal
 import workflow
 from store import Store, list_boards
 
@@ -22,7 +25,7 @@ app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Strict"
 @app.before_request
 def _require_login():
     """設了密碼就每一頁都要登入（本機也一樣，規則單純）。"""
-    if not auth.password_hash() or request.path in ("/login", "/logout") or session.get("ok"):
+    if not auth.password_hash() or request.path in ("/login", "/logout", "/theme.css") or session.get("ok"):
         return None
     if request.path.startswith("/api/"):
         return jsonify(error="請先登入（重新整理頁面）"), 401
@@ -30,15 +33,13 @@ def _require_login():
 
 
 LOGIN_PAGE = """<!doctype html><html lang="zh-Hant"><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1"><title>評語審核：登入</title>
-<style>body{{margin:0;min-height:100vh;display:grid;place-items:center;background:#f6f5f2;
-font:15px/1.6 "Microsoft JhengHei",system-ui,sans-serif;color:#1f2328}}
-form{{background:#fff;border:1px solid #e3e1dc;border-radius:12px;padding:24px 28px;width:min(320px,90vw)}}
-h1{{font-size:18px;margin:0 0 12px}}input{{width:100%;box-sizing:border-box;font:inherit;padding:8px 10px;
-border:1px solid #e3e1dc;border-radius:6px}}button{{margin-top:12px;width:100%;font:inherit;padding:8px;border:0;
-border-radius:8px;background:#2f6f5e;color:#fff;cursor:pointer}}.err{{color:#a3322b;font-size:14px}}</style>
-<form method="post"><h1>評語審核</h1>{msg}<input type="password" name="pw" placeholder="密碼" autofocus>
-<button>登入</button></form></html>"""
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>AI 評語小幫手：登入</title>
+<link rel="stylesheet" href="/theme.css">
+<style>body{{min-height:100vh;display:grid;place-items:center;padding:16px}}
+form{{width:min(340px,100%)}}form input{{width:100%}}form button{{margin-top:12px;width:100%}}
+.brand{{margin-bottom:18px}}</style>
+<form method="post" class="panel"><div class="brand"><span class="mark">評</span><span><b>AI 評語小幫手</b><small>Art Feedback Assistant</small></span></div>
+{msg}<input type="password" name="pw" placeholder="密碼" aria-label="密碼" autofocus><button class="primary">登入</button></form></html>"""
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -61,6 +62,8 @@ def login():
 def logout():
     session.clear()
     return redirect("/login")
+
+
 EDITABLE = ("comment", "teacher_note", "mode")
 _write = threading.Lock()
 
@@ -69,6 +72,8 @@ def serialized(f):
     """會改進度或呼叫模型的請求一次只處理一個，避免同時寫檔互相蓋掉、或同時搶顯卡。"""
     @functools.wraps(f)
     def wrap(*a, **kw):
+        if kw.get("bid") in portal.busy():
+            abort(409, "這面牆正在背景抓作業／寫草稿，請等完成後重新整理")
         with _write:
             return f(*a, **kw)
     return wrap
@@ -85,25 +90,33 @@ def _view(st: Store) -> dict:
     rb = workflow.load_rubric(st)
     students = []
     for s in st.ordered():
-        sc = rb.score(s["levels"]) if s.get("ai") else None
+        r = workflow.rubric_for(rb, s)   # 每個區段一份作業時，各作品的檢查點不同
+        sc = r.score(s["levels"]) if s.get("ai") else None
         # 「請老師判斷」即時計算：老師選了等級就不再提醒
-        todo = [c.name for c in rb.criteria if not c.ai and not s["levels"].get(c.key)]
+        todo = [c.name for c in r.criteria if not c.ai and not s["levels"].get(c.key)]
         flags = ([f"請老師判斷：{'、'.join(todo)}"] if todo and s["status"] != "posted" else []) + s["flags"]
         students.append({**s, "flags": flags, "score": list(sc) if sc else None,
+                         "criteria": [{"key": c.key, "name": c.name, "look_for": c.look_for, "ai": c.ai} for c in r.criteria],
                          "preview_html": feedback.to_html(s["comment"], s.get("teacher_note", ""), rb.disclose_ai)})
     return {
         "board": st.state["board"], "source": st.state.get("source"), "group_by": st.state.get("group_by"),
         "fetched_at": st.state.get("fetched_at"), "summary": st.state.get("summary"),
-        "rubric": {"title": rb.title, "task": rb.task, "levels": rb.levels, "has_points": bool(rb.points),
-                   "criteria": [{"key": c.key, "name": c.name, "look_for": c.look_for, "ai": c.ai} for c in rb.criteria]},
+        "rubric": {"title": rb.title, "task": rb.task, "levels": rb.levels, "has_points": bool(rb.points)},
         "students": students,
     }
 
 
 @app.errorhandler(Exception)
 def _err(e):
+    if type(e) is LookupError or isinstance(e, (ValueError, padlet.PadletError)):   # 給老師看的訊息，原樣顯示
+        return jsonify(error=str(e)), 404 if type(e) is LookupError else 400
     code = getattr(e, "code", 500)
     return jsonify(error=getattr(e, "description", None) or f"{type(e).__name__}: {e}"), code if isinstance(code, int) else 500
+
+
+@app.get("/theme.css")
+def theme():
+    return send_from_directory(HERE / "static", "theme.css")
 
 
 @app.get("/")
@@ -166,7 +179,7 @@ def redraft(bid):
         s["levels"].update({k: v for k, v in d["levels"].items() if v})
     rb = workflow.load_rubric(st)
     if not d.get("rejudge") and "mode" not in d and s["mode"] != workflow.REUPLOAD:
-        s["mode"] = feedback.pick_mode(rb, s["levels"])   # 改了等級就重新決定模式；「請重傳」要老師手動切換
+        s["mode"] = feedback.pick_mode(workflow.rubric_for(rb, s), s["levels"])   # 改了等級就重新決定模式；「請重傳」要老師手動切換
     workflow.draft_one(st, d["sid"], rb, rejudge=bool(d.get("rejudge")), teacher_hint=d.get("hint", ""))
     return jsonify(_view(st))
 
@@ -193,6 +206,87 @@ def publish(bid):
 def export(bid):
     p = workflow.export_csv(_store(bid))
     return send_file(p, as_attachment=True, download_name=p.name)
+
+
+# ---------------------------------------------------------------- 作業牆建立與後台（portal.py）
+@app.get("/portal")
+def portal_page():
+    return send_from_directory(HERE / "static", "portal.html")
+
+
+@app.get("/api/portal")
+def portal_all():
+    return jsonify(templates=portal.templates(), rubrics=portal.rubrics(), todos=portal.TODOS,
+                   boards=[portal.view(b) for b in portal.boards()], jobs=portal.running())
+
+
+@app.post("/api/portal/create")
+def portal_create():
+    p = portal.prepare(request.get_json())
+    return jsonify(portal.start("create", lambda job: portal.create_board(p, job)))
+
+
+@app.get("/api/portal/jobs/<jid>")
+def portal_job(jid):
+    return jsonify(portal.job(jid))
+
+
+@app.post("/api/portal/boards/<bid>")
+def portal_board(bid):
+    d = request.get_json()
+    if "todo" in d:
+        b = portal.set_todo(bid, d["todo"], d.get("done"))
+    elif "rubric" in d:
+        b = portal.set_rubric(bid, d["rubric"])
+    else:
+        abort(400, "沒有要改的內容")
+    return jsonify(portal.view(b))
+
+
+@app.post("/api/portal/boards/<bid>/count")
+def portal_count(bid):
+    return jsonify(portal.count(bid))
+
+
+@app.post("/api/portal/boards/<bid>/grade")
+def portal_grade(bid):
+    portal.get(bid)
+    return jsonify(portal.start("grade", lambda job: portal.grade(bid, job), board=bid))
+
+
+@app.post("/api/portal/boards/<bid>/forget")
+def portal_forget(bid):
+    if bid in portal.busy():
+        abort(409, "這面牆正在背景處理中，請等它完成")
+    portal.forget(bid)
+    return jsonify(ok=True)
+
+
+@app.get("/api/portal/boards/<bid>/qr")
+def portal_qr(bid):
+    png, name = portal.qr_png(bid)
+    return send_file(io.BytesIO(png), mimetype="image/png", as_attachment=True, download_name=name)
+
+
+@app.post("/api/portal/templates")
+def portal_template_save():
+    return jsonify(portal.save_template(request.get_json()))
+
+
+@app.post("/api/portal/templates/<tid>/delete")
+def portal_template_delete(tid):
+    return jsonify(portal.delete_template(tid))
+
+
+@app.get("/api/portal/rubric")
+def portal_rubric_read():
+    return jsonify(portal.read_rubric(request.args.get("path", "")))
+
+
+@app.post("/api/portal/rubric")
+def portal_rubric_save():
+    d = request.get_json()
+    return jsonify(portal.save_rubric(d.get("name", ""), d.get("text", ""), bool(d.get("overwrite"))))
 
 
 def _lan_ips() -> list:

@@ -1,0 +1,86 @@
+/* 共用視覺：參考美術老師的網站（AI 教學觀察所）——米白底、明體標題、金銅色按鈕、深綠色塊、細線分隔 */
+@import url("https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;600&family=Noto+Sans+TC:wght@400;500&display=swap");
+
+:root {
+  --bg: #f8f6f1;          /* 米白底 */
+  --surface: #fffdf9;     /* 卡片 */
+  --soft: #eceee8;        /* 淡灰綠色塊 */
+  --green: #263a30;       /* 深綠色塊 */
+  --ink: #2b2a27;
+  --muted: #7b776e;
+  --line: #e2ddd2;
+  --gold: #946f33;        /* 金銅：主要按鈕、小標、連結 */
+  --gold-dark: #7c5c28;
+  --gold-soft: #f3ecdf;
+  --ok: #3c5e4b; --ok-bg: #e5ece6;
+  --warn: #9a6423; --warn-bg: #f6eddd;
+  --bad: #9b3b2e; --bad-bg: #f6e4e0;
+  --chip: #efebe3;
+  --serif: "Noto Serif TC", "Songti TC", "PMingLiU", serif;
+  --sans: "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.75 var(--sans); }
+a { color: var(--gold); text-underline-offset: 3px; }
+a:hover { color: var(--gold-dark); }
+h1, h2, h3, .serif { font-family: var(--serif); font-weight: 500; letter-spacing: .02em; }
+
+/* 頁首：左邊站名（明體＋英文副標），右邊小字導覽 */
+.site { position: sticky; top: 0; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); }
+.site .bar { max-width: 1120px; margin: 0 auto; padding: 12px 20px; display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
+.brand .mark { width: 36px; height: 36px; border-radius: 6px; background: linear-gradient(135deg, #b08a4a, #6f4f22); color: #fff8ea;
+  display: grid; place-items: center; font: 600 15px var(--serif); }
+.brand b { display: block; font: 500 17px/1.3 var(--serif); }
+.brand small { display: block; font: 500 11px/1.3 var(--serif); color: var(--gold); letter-spacing: .04em; }
+.nav { display: flex; gap: 18px; align-items: center; margin-left: auto; font-size: 13px; }
+.nav a { color: var(--ink); text-decoration: none; }
+.nav a:hover, .nav a.on { color: var(--gold); }
+
+/* 英文小標（TEACHING RESOURCES 那種） */
+.eyebrow { font: 600 11px/1.4 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--gold); margin: 0 0 6px; }
+
+/* 分頁：文字加底線，不用膠囊 */
+.tabs { display: flex; flex-wrap: wrap; gap: 4px 22px; border-bottom: 1px solid var(--line); margin-bottom: 22px; }
+.tabs button { border: 0; background: none; border-radius: 0; padding: 8px 0; margin-bottom: -1px; color: var(--muted);
+  font: 500 15px var(--serif); border-bottom: 2px solid transparent; }
+.tabs button:hover:not(:disabled) { color: var(--ink); border-color: transparent; }
+.tabs button.on { color: var(--ink); border-bottom-color: var(--gold); }
+
+/* 按鈕：金銅實心／細框 */
+button { font: inherit; font-size: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  border-radius: 4px; padding: 7px 16px; cursor: pointer; transition: border-color .15s, background .15s; }
+button:hover:not(:disabled) { border-color: var(--gold); }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--gold); border-color: var(--gold); color: #fff; }
+button.primary:hover:not(:disabled) { background: var(--gold-dark); border-color: var(--gold-dark); }
+button.danger { color: var(--bad); }
+button.link { border: 0; background: none; color: var(--muted); padding: 2px 4px; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+button.link:hover:not(:disabled) { color: var(--gold); }
+
+select, textarea, input { font: inherit; font-size: 14px; color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 4px; padding: 7px 10px; max-width: 100%; }
+select:focus, textarea:focus, input:focus { outline: 2px solid var(--gold-soft); border-color: var(--gold); }
+
+/* 區塊：平面、細線，不用陰影 */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 22px 26px; margin-bottom: 18px; }
+.panel.soft { background: var(--soft); border-color: transparent; }
+.panel.dark { background: var(--green); border-color: var(--green); color: #eef0ea; }
+.panel.dark .eyebrow { color: #c9a86a; }
+.panel h2 { font-size: 20px; margin: 0 0 12px; }
+.sub { color: var(--muted); font-size: 13px; }
+.spacer { flex: 1; }
+.chip { font-size: 12px; background: var(--chip); color: var(--muted); border-radius: 3px; padding: 1px 9px; }
+.flag { font-size: 13px; background: var(--warn-bg); color: var(--warn); border-radius: 3px; padding: 3px 10px; }
+.err { font-size: 14px; background: var(--bad-bg); color: var(--bad); border-radius: 3px; padding: 7px 12px; }
+.okmsg { font-size: 14px; background: var(--ok-bg); color: var(--ok); border-radius: 3px; padding: 7px 12px; }
+.empty { text-align: center; color: var(--muted); padding: 36px; }
+code { background: var(--chip); border-radius: 3px; padding: 0 5px; font: 13px Consolas, "Cascadia Mono", monospace; }
+#toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--green); color: #fff; padding: 9px 18px;
+  border-radius: 4px; z-index: 30; max-width: 90vw; font-size: 14px; }
+@media (max-width: 600px) {
+  .site .bar { padding: 10px 16px; }
+  .nav { margin-left: 0; width: 100%; gap: 14px; }
+  .panel { padding: 16px; }
+}

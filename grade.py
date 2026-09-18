@@ -2,9 +2,9 @@
 
 常用（在 repo 資料夾執行）：
   一次做完抓作業＋寫草稿＋開審核頁：
-    .venv\\Scripts\\python.exe -X utf8 grade.py run <Padlet網址> --rubric rubrics\\範例-色彩練習.toml
+    .venv\\Scripts\\python.exe -X utf8 grade.py run <Padlet網址> --rubric rubrics\\範例-攝影三作業.toml
   用本機資料夾試跑（每位學生一個子資料夾，不會發到 Padlet）：
-    .venv\\Scripts\\python.exe -X utf8 grade.py run D:\\試跑作品 --rubric rubrics\\範例-色彩練習.toml
+    .venv\\Scripts\\python.exe -X utf8 grade.py run D:\\試跑作品 --rubric rubrics\\範例-攝影三作業.toml
   只開審核頁（接著上次的進度）：
     .venv\\Scripts\\python.exe -X utf8 grade.py review
 詳細說明見 GRADING.md。
@@ -45,6 +45,9 @@ def main():
         p.add_argument("--rubric", required=True, help="評分規準 .toml")
         p.add_argument("--group-by", default="auto", choices=["auto", "author", "name", "subject", "section", "post"],
                        help="怎麼把貼文分給學生（預設 auto：有登入依帳號，訪客依名字，匿名依標題）")
+        p.add_argument("--unit", default="auto", choices=["auto", "section", "student"],
+                       help="section：每個區段是一份作業，分開評；student：整面牆一份作業，各區段照片合起來評；"
+                            "auto（預設）：rubric 有 [[assignments]] 就用 section")
 
     p = sub.add_parser("run", help="抓作業＋寫草稿＋開審核頁")
     src_args(p)
@@ -68,7 +71,7 @@ def main():
     a = ap.parse_args()
     try:
         if a.cmd in ("run", "fetch"):
-            st = workflow.fetch(a.source, a.rubric, a.group_by)
+            st = workflow.fetch(a.source, a.rubric, a.group_by, unit=a.unit)
             if a.cmd == "run":
                 workflow.draft_all(st)
                 import server

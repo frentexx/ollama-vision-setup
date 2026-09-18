@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>作業牆管理</title>
+<link rel="stylesheet" href="/theme.css">
+<style>
+  main { max-width: 1120px; margin: 0 auto; padding: 34px 20px 90px; }
+  .intro h1 { font-size: 28px; margin: 0 0 4px; }
+  .intro p { margin: 0 0 26px; color: var(--muted); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .hint { font-size: 13px; color: var(--muted); margin-top: 4px; line-height: 1.6; }
+  .form { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 14px 18px; align-items: start; max-width: 760px; }
+  .form > label { padding-top: 7px; font: 500 14px var(--serif); }
+  .form input[type=text], .form select { width: 100%; }
+  @media (max-width: 600px) { .form { grid-template-columns: 1fr; gap: 4px; } .form > label { padding-top: 10px; } }
+  #fCount { width: auto; }
+
+  /* 五個步驟：仿「01 / 高一美術」分欄 */
+  .guide summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 12px; }
+  .guide summary::-webkit-details-marker { display: none; }
+  .guide summary h2 { margin: 0; }
+  .guide[open] summary .toggle::after { content: "收合"; }
+  .guide:not([open]) summary .toggle::after { content: "展開"; }
+  .steps { list-style: none; margin: 18px 0 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .steps li { border-left: 1px solid #d6d8cf; padding: 2px 14px 4px; }
+  .steps .n { font: 500 13px var(--serif); color: var(--gold); }
+  .steps b { display: block; font: 500 16px/1.5 var(--serif); margin: 2px 0; }
+  .steps span { font-size: 13px; color: var(--muted); line-height: 1.6; display: block; }
+  @media (max-width: 760px) { .steps { grid-template-columns: 1fr 1fr; gap: 12px 0; } }
+
+  .secs { display: grid; gap: 8px; margin-top: 10px; }
+  .sec { display: grid; grid-template-columns: minmax(0, 240px) minmax(0, 1fr); gap: 10px; align-items: center; }
+  .sec input { width: 100%; }
+  @media (max-width: 600px) { .sec { grid-template-columns: 1fr; gap: 0; } }
+  .m-ok { color: var(--ok); font-size: 13px; }
+  .m-warn { color: var(--warn); font-size: 13px; }
+  .m-bad { color: var(--bad); font-size: 13px; }
+
+  .job { background: var(--bg); border-radius: 3px; padding: 10px 14px; font-size: 13px; max-height: 220px; overflow: auto; }
+  .job div { white-space: pre-wrap; }
+  .job .now { color: var(--gold); font-weight: 500; }
+  .board { display: grid; gap: 12px; }
+  .bhead { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; }
+  .bhead h2 { margin: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .todos { display: grid; gap: 4px; background: var(--soft); border-radius: 3px; padding: 12px 16px; }
+  .todos label { display: flex; gap: 10px; align-items: center; cursor: pointer; font-size: 14px; }
+  .todos input { width: 17px; height: 17px; accent-color: var(--gold); }
+  .share { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: center; border: 1px solid var(--line); border-radius: 3px; padding: 12px 16px; }
+  .share input { width: 100%; }
+  .share img { width: 116px; height: 116px; background: #fff; }
+  @media (max-width: 600px) { .share { grid-template-columns: 1fr; } }
+  .locked { font-size: 13px; color: var(--muted); border: 1px dashed var(--line); border-radius: 3px; padding: 12px 16px; }
+  .tpl { display: grid; gap: 10px; }
+  textarea { width: 100%; resize: vertical; line-height: 1.7; }
+  textarea.code { font: 13px/1.6 Consolas, "Cascadia Mono", "Microsoft JhengHei", monospace; min-height: 420px; tab-size: 2; }
+
+  /* 使用說明：三欄小卡＋深綠常見問題 */
+  .cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cols > div { border-left: 1px solid var(--line); padding: 0 18px 4px; }
+  .cols h3 { font-size: 17px; margin: 2px 0 6px; }
+  .cols p { font-size: 14px; color: #55524b; margin: 0 0 8px; }
+  @media (max-width: 760px) { .cols { grid-template-columns: 1fr; gap: 18px; } }
+  pre.code { background: var(--bg); border-radius: 3px; padding: 8px 12px; margin: 6px 0 0; overflow-x: auto; font: 12.5px/1.55 Consolas, "Cascadia Mono", "Microsoft JhengHei", monospace; }
+  .faq { margin: 0; }
+  .faq dt { font: 500 15px var(--serif); margin-top: 10px; }
+  .faq dd { margin: 2px 0 0; font-size: 14px; color: #c9cfc8; }
+</style>
+</head>
+<body>
+<header class="site">
+  <div class="bar">
+    <a class="brand" href="/"><span class="mark">評</span><span><b>AI 評語小幫手</b><small>Art Feedback Assistant</small></span></a>
+    <nav class="nav"><a href="/">評語審核</a><a href="/portal" class="on">作業牆管理</a><a href="/logout">登出</a></nav>
+  </div>
+</header>
+<main>
+  <div class="intro">
+    <p class="eyebrow">Assignment Walls</p>
+    <h1>作業牆管理</h1>
+    <p>建 Padlet 作業牆、收作業、請 AI 寫評語草稿。</p>
+  </div>
+  <div class="tabs" id="tabs"></div>
+
+  <section data-page="create">
+    <details class="panel soft guide" id="guideSteps" open>
+      <summary><h2>五個步驟</h2><span class="sub toggle"></span></summary>
+      <ol class="steps">
+        <li><span class="n">01 /</span><b>建牆</b><span>設定區段，一個區段一份作業</span></li>
+        <li><span class="n">02 /</span><b>Padlet 設定</b><span>完成三項待辦並打勾</span></li>
+        <li><span class="n">03 /</span><b>給學生</b><span>分享網址或 QR code</span></li>
+        <li><span class="n">04 /</span><b>寫草稿</b><span>收齊後按「抓作業＋寫草稿」</span></li>
+        <li><span class="n">05 /</span><b>審核發布</b><span>核准後按「發布已核准」</span></li>
+      </ol>
+    </details>
+    <div class="panel">
+      <p class="eyebrow">New Wall</p>
+      <h2>建一面新的作業牆</h2>
+      <div class="form">
+        <label for="fTpl">範本</label>
+        <div><select id="fTpl"></select><div class="hint" id="tplInfo"></div></div>
+        <label for="fClass">班級</label>
+        <div><input type="text" id="fClass" maxlength="20" placeholder="例如 802"></div>
+        <label for="fName">作業牆名稱</label>
+        <div><input type="text" id="fName" maxlength="40" placeholder="例如 攝影單元"></div>
+        <label for="fCount">區段</label>
+        <div><div class="row"><select id="fCount"></select><span class="sub">個，一個區段是一份作業</span></div>
+          <div id="secList" class="secs"></div></div>
+        <label for="fNote">補充說明</label>
+        <div><textarea id="fNote" rows="2" maxlength="500" placeholder="選填，例如：截止日 10/3"></textarea>
+          <div class="hint">會寫進牆上的說明，不會自動關閉。</div></div>
+        <div></div>
+        <div class="row"><button class="primary" id="btnCreate">建立作業牆</button><span class="sub" id="preview"></span></div>
+      </div>
+    </div>
+    <div id="createOut"></div>
+  </section>
+
+  <section data-page="boards">
+    <div id="boardList"></div>
+  </section>
+
+  <section data-page="templates">
+    <p class="sub" style="margin:-6px 0 16px">建牆時的預設值；區段數量和名稱建牆時還能改。</p>
+    <div id="tplList"></div>
+    <button id="btnNewTpl">＋ 新增範本</button>
+  </section>
+
+  <section data-page="rubrics">
+    <div class="panel">
+      <p class="eyebrow">Rubric</p>
+      <h2>評分規準</h2>
+      <div class="row" style="margin-bottom:10px">
+        <select id="rbSel"></select>
+        <label class="sub">檔名 <input type="text" id="rbName" placeholder="例如 802-攝影.toml" style="width:200px"></label>
+        <button class="primary" id="btnRbSave">檢查並儲存</button>
+        <button id="btnRbUpload" type="button">上傳 .toml</button><input type="file" id="rbFile" accept=".toml,.txt" hidden>
+      </div>
+      <div id="rbMsg"></div>
+      <textarea class="code" id="rbText" spellcheck="false"></textarea>
+      <p class="hint">存檔前會檢查格式，有錯不會蓋掉原檔。格式說明在「使用說明」。</p>
+    </div>
+  </section>
+
+  <section data-page="help">
+    <div class="panel">
+      <p class="eyebrow">Guide</p>
+      <h2>使用說明</h2>
+      <div class="cols">
+        <div><h3>AI 只寫草稿</h3>
+          <p>每則評語都要老師在「評語審核」核准，再按「發布已核准」才會留言到 Padlet。送出後不能撤回。</p></div>
+        <div><h3>區段＝作業</h3>
+          <p>學生在每個區段各貼一篇，AI 分開評，評語留在那一篇。</p>
+          <p>區段名稱包含評分規準的作業名稱（例如「微距攝影」），就用那份作業的檢查點。</p></div>
+        <div><h3>評分規準 .toml</h3>
+          <p>純文字設定檔，記事本就能開。文字要加雙引號；<code>[[criteria]]</code> 是共同檢查點，<code>[[assignments]]</code> 是各份作業。</p>
+          <pre class="code">[[assignments]]
+name = "風景攝影"
+  [[assignments.criteria]]
+  name = "三分法構圖"
+  look_for = "地平線在三分之一處"</pre>
+          <p style="margin-top:8px">打開範例改內容，換檔名另存最快。</p></div>
+      </div>
+    </div>
+    <div class="panel dark">
+      <p class="eyebrow">FAQ</p>
+      <h2>常見問題</h2>
+      <dl class="faq">
+        <dt>學生不能貼文，或貼了要等核准才出現？</dt><dd>是 Padlet 的設定，照作業牆清單的三項待辦改。</dd>
+        <dt>學生貼錯區段？</dt><dd>請學生刪掉重貼，再按一次「抓作業＋寫草稿」。</dd>
+        <dt>AI 說照片不是作品？</dt><dd>如果其實是，在審核頁按「鼓勵」或「修正建議」重寫。</dd>
+      </dl>
+    </div>
+  </section>
+</main>
+<div id="toast" hidden></div>
+
+<script>
+const PAGES = [["create", "建作業牆"], ["boards", "作業牆清單"], ["templates", "範本"], ["rubrics", "評分規準"], ["help", "使用說明"]];
+const CIRCLED = "①②③④⑤⑥⑦⑧";
+let D = null, page = "create", rbLoaded = "", secs = null, secTpl = "";
+const jobs = {};   // board id（建牆用 "_create"）→ 工作進度
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const enc = encodeURIComponent;
+const time = s => (s || "").replace("T", " ").slice(0, 16);
+
+function toast(msg, ms = 3500) {
+  const t = $("#toast"); t.textContent = msg; t.hidden = false;
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.hidden = true, ms);
+}
+
+async function api(path, body) {
+  const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
+  if (r.status === 401) { location.href = "/login"; throw new Error("請先登入"); }
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error || r.statusText);
+  return d;
+}
+
+async function load() {
+  D = await api("/api/portal");
+  for (const j of D.jobs) if (!Object.values(jobs).some(x => x.id === j.id)) { jobs[j.board || "_create"] = j; poll(j.board || "_create"); }
+  renderAll();
+}
+
+function renderAll() {
+  $("#tabs").innerHTML = PAGES.map(([k, v]) => `<button data-page-btn="${k}" class="${k === page ? "on" : ""}">${v}${k === "boards" ? ` ${D.boards.length}` : ""}</button>`).join("");
+  document.querySelectorAll("[data-page]").forEach(s => s.hidden = s.dataset.page !== page);
+  renderCreate(); renderBoards(); renderTemplates(); renderRubricSel();
+}
+
+// ------------------------------------------------------------ 建作業牆
+function renderCreate() {
+  const sel = $("#fTpl"), cur = sel.value;
+  sel.innerHTML = D.templates.map(t => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join("");
+  if (cur && D.templates.some(t => t.id === cur)) sel.value = cur;
+  const t = D.templates.find(t => t.id === sel.value);
+  $("#tplInfo").innerHTML = t ? `評分規準：${t.rubric ? esc(t.rubric.replace("rubrics/", "")) : "（沒有預設，建好後在作業牆清單選）"}` : "";
+  if (t && secTpl !== t.id) { secTpl = t.id; secs = [...t.sections]; renderSecs(); }   // 換範本才重設區段，打字中不重畫
+  const c = $("#fClass").value.trim(), n = $("#fName").value.trim();
+  $("#preview").textContent = c && n ? `牆的標題會是「${c} ${n}」` : "";
+  const j = jobs._create;
+  $("#btnCreate").disabled = j?.status === "running";
+  $("#createOut").innerHTML = j ? jobBox(j, "create") : "";
+}
+
+function jobBox(j, kind) {
+  const lines = j.lines.map(l => `<div>${esc(l)}</div>`).join("") + (j.progress ? `<div class="now">${esc(j.progress)}</div>` : "");
+  if (j.status === "running") return `<div class="panel"><div class="job">${lines || '<div class="now">開始…</div>'}</div></div>`;
+  if (j.status === "error") return `<div class="panel"><div class="err">${esc(j.error)}</div>${lines ? `<div class="job" style="margin-top:8px">${lines}</div>` : ""}
+    ${kind === "create" ? '<div class="row" style="margin-top:10px"><button class="primary" data-act="retry">重試</button><span class="sub">表單內容都還在</span></div>' : ""}</div>`;
+  if (kind === "create") {
+    const b = D.boards.find(b => b.id === j.result?.id) || j.result;
+    return `<div class="panel"><div class="okmsg">作業牆建好了！完成下面三項設定，就會出現給學生的網址和 QR code。</div></div>
+      <div class="panel">${boardCard(b)}</div>`;
+  }
+  return "";
+}
+
+function renderSecs() {
+  $("#fCount").innerHTML = [1, 2, 3, 4, 5, 6, 7, 8].map(n => `<option ${n === secs.length ? "selected" : ""}>${n}</option>`).join("");
+  $("#secList").innerHTML = secs.map((s, i) => `<div class="sec"><input type="text" data-sec="${i}" maxlength="20" value="${esc(s)}"
+      placeholder="例如 ${CIRCLED[i]} 靜物攝影" aria-label="第 ${i + 1} 個區段名稱"><span data-match="${i}"></span></div>`).join("");
+  secHints();
+}
+
+const norm = s => String(s || "").replace(/\s+/g, "");
+function secHints() {   // 每個區段對不對得上評分規準的作業（規則跟 rubric.py 的 match 一樣）
+  const t = D.templates.find(t => t.id === $("#fTpl").value);
+  const r = D.rubrics.find(r => r.path === t?.rubric);
+  secs.forEach((s, i) => {
+    const el = $(`[data-match="${i}"]`);
+    if (!el) return;
+    const hit = r && r.assignments.filter(a => norm(a) && norm(s).includes(norm(a))).sort((a, b) => b.length - a.length)[0];
+    el.className = !r || !norm(s) ? "sub" : hit ? "m-ok" : r.common ? "m-warn" : "m-bad";
+    el.textContent = !norm(s) ? "" : !r ? "（還沒選評分規準）" : hit ? `✓ 用「${hit}」的檢查點評`
+      : r.common ? "評分規準裡沒有這份作業，只用共同檢查點評" : "評分規準裡沒有這份作業，無法評分";
+  });
+}
+
+async function create() {
+  const body = { template: $("#fTpl").value, class_name: $("#fClass").value, assignment: $("#fName").value, note: $("#fNote").value, sections: secs };
+  try {
+    jobs._create = await api("/api/portal/create", body);
+    renderCreate(); poll("_create");
+  } catch (e) { toast(e.message, 6000); }
+}
+
+async function poll(key) {
+  const j = jobs[key];
+  if (!j || j.status !== "running" || poll[key]) return;
+  poll[key] = true;
+  try {
+    while (jobs[key]?.status === "running") {
+      await new Promise(r => setTimeout(r, 1500));
+      try { jobs[key] = await api(`/api/portal/jobs/${enc(jobs[key].id)}`); }
+      catch (e) { jobs[key] = { ...jobs[key], status: "error", error: e.message, progress: "" }; }
+      if (jobs[key].status !== "running") await load(); else renderAll();
+    }
+  } finally { poll[key] = false; }
+}
+
+// ------------------------------------------------------------ 作業牆清單
+function boardCard(b) {
+  const todos = Object.entries(D.todos).map(([k, v]) =>
+    `<label><input type="checkbox" data-todo="${k}" ${b.todos[k] ? "checked" : ""}>${esc(v)}</label>`).join("");
+  const rubrics = D.rubrics.map(r => `<option value="${esc(r.path)}" ${r.path === b.rubric ? "selected" : ""} ${r.error ? "disabled" : ""}>${esc(r.path.replace("rubrics/", ""))}${r.error ? "（格式有誤）" : ""}</option>`).join("");
+  const cnt = b.count ? `繳交 <b>${b.count.students}</b> 位（${b.count.posts} 篇，${time(b.count.at).slice(11)} 更新）` : "繳交人數還沒查";
+  const j = jobs[b.id];
+  const share = b.ready
+    ? `<div class="share"><div><div class="sub">給學生的網址</div>
+         <div class="row"><input type="text" readonly value="${esc(b.url)}" style="flex:1;min-width:0"><button data-act="copy">複製</button></div>
+         ${b.qr ? `<div class="row" style="margin-top:6px"><a href="/api/portal/boards/${enc(b.id)}/qr">下載 QR code</a></div>` : ""}</div>
+         ${b.qr ? `<img src="${esc(b.qr)}" alt="作業牆 QR code">` : ""}</div>`
+    : `<div class="locked">三項都打勾後，這裡會出現給學生的網址和 QR code。</div>`;
+  return `<div class="board" data-bid="${esc(b.id)}">
+    <div><p class="eyebrow">${esc(b.class_name)}</p><div class="bhead"><h2>${esc(b.title)}</h2>
+      <span class="sub">建立於 ${esc(time(b.created_at))}</span></div></div>
+    <div class="chips">${(b.sections || []).map(s => `<span class="chip">${esc(s)}</span>`).join("")}</div>
+    ${b.problems?.length ? b.problems.map(p => `<div class="flag">${esc(p)}</div>`).join("") : ""}
+    <div class="todos"><div class="row"><b class="serif">到 Padlet 完成三項設定</b><a href="${esc(b.admin_url)}" target="_blank">開啟這面牆 ↗</a>
+      <span class="sub">右上角「⋯」→ 設定</span></div>${todos}</div>
+    ${share}
+    <div class="row"><span class="sub">${cnt}</span><button class="link" data-act="count">重新整理人數</button></div>
+    <div class="row"><span class="sub">評分規準</span><select data-f="rubric">${b.rubric ? "" : '<option value="">（未選）</option>'}${rubrics}</select></div>
+    <div class="row"><button class="primary" data-act="grade" ${b.busy || j?.status === "running" ? "disabled" : ""}>抓作業＋寫草稿</button>
+      ${b.has_state ? `<a href="/?board=${enc(b.id)}">進入審核頁</a>` : ""}
+      <span class="spacer"></span><button class="link danger" data-act="forget">從清單移除</button></div>
+    ${j && j.status !== "done" ? jobBox(j, "grade") : ""}
+    ${j?.status === "done" ? `<div class="okmsg">草稿寫好了，<a href="${esc(j.result.review)}">進入審核頁</a></div>` : ""}
+  </div>`;
+}
+
+function renderBoards() {
+  $("#boardList").innerHTML = D.boards.length
+    ? D.boards.map(b => `<div class="panel">${boardCard(b)}</div>`).join("")
+    : '<div class="panel empty">還沒有作業牆，到「建作業牆」建一面吧。</div>';
+}
+
+async function boardAct(el, act) {
+  const bid = el.dataset.bid, base = `/api/portal/boards/${enc(bid)}`;
+  try {
+    if (act === "copy") { await navigator.clipboard.writeText($("input[readonly]", el).value); toast("已複製網址"); return; }
+    if (act === "count") { replaceBoard(await api(`${base}/count`, {})); toast("已更新繳交人數"); return; }
+    if (act === "grade") {
+      if (!confirm("從 Padlet 抓這面牆的作業並寫評語草稿？學生多的話要幾分鐘，可以先離開這頁，回來再看。")) return;
+      jobs[bid] = await api(`${base}/grade`, {}); renderAll(); poll(bid); return;
+    }
+    if (act === "forget") {
+      if (!confirm("只會從這個清單移除，Padlet 上的牆不會被刪。確定？")) return;
+      await api(`${base}/forget`, {}); await load(); return;
+    }
+  } catch (e) { toast(e.message, 6000); }
+}
+
+function replaceBoard(b) { D.boards = D.boards.map(x => x.id === b.id ? b : x); renderAll(); }
+
+// ------------------------------------------------------------ 範本
+function renderTemplates() {
+  if (document.activeElement?.closest?.("#tplList")) return;   // 正在編輯就不重畫
+  $("#tplList").innerHTML = D.templates.map(tplCard).join("");
+}
+
+function tplCard(t) {
+  const rubrics = D.rubrics.map(r => `<option value="${esc(r.path)}" ${r.path === t.rubric ? "selected" : ""}>${esc(r.path.replace("rubrics/", ""))}</option>`).join("");
+  return `<div class="panel tpl" data-tid="${esc(t.id || "")}">
+    <div class="form">
+      <label>範本名稱</label><div><input type="text" data-f="name" value="${esc(t.name)}" maxlength="40"></div>
+      <label>區段</label><div><textarea data-f="sections" rows="4">${esc(t.sections.join("\n"))}</textarea><div class="hint">一行一個，最多 8 個</div></div>
+      <label>牆的說明</label><div><textarea data-f="description" rows="3" maxlength="600">${esc(t.description)}</textarea><div class="hint">學生看得到，例如怎麼上傳、標題怎麼寫</div></div>
+      <label>評分規準</label><div><select data-f="rubric"><option value="">（不預設）</option>${rubrics}</select></div>
+      <div></div><div class="row"><button class="primary" data-act="saveTpl">儲存範本</button>
+        ${t.id && D.templates.length > 1 ? '<button class="link danger" data-act="delTpl">刪除範本</button>' : ""}</div>
+    </div></div>`;
+}
+
+async function tplAct(el, act) {
+  const f = k => $(`[data-f=${k}]`, el).value;
+  try {
+    if (act === "saveTpl") {
+      D.templates = await api("/api/portal/templates", { id: el.dataset.tid, name: f("name"), sections: f("sections").split("\n"), description: f("description"), rubric: f("rubric") });
+      document.activeElement?.blur(); secTpl = ""; toast("範本已儲存");
+    } else if (act === "delTpl") {
+      if (!confirm("刪除這個範本？已經建好的牆不受影響。")) return;
+      D.templates = await api(`/api/portal/templates/${enc(el.dataset.tid)}/delete`, {});
+    }
+    renderAll();
+  } catch (e) { toast(e.message, 6000); }
+}
+
+// ------------------------------------------------------------ 評分規準
+function renderRubricSel() {
+  const sel = $("#rbSel"), cur = sel.value || rbLoaded;
+  sel.innerHTML = '<option value="">（選一個檔案編輯）</option>' + D.rubrics.map(r => `<option value="${esc(r.path)}">${esc(r.path.replace("rubrics/", ""))}　${esc(r.title)}${r.error ? "（格式有誤）" : ""}</option>`).join("");
+  sel.value = cur;
+}
+
+async function openRubric(path) {
+  $("#rbMsg").innerHTML = "";
+  if (!path) { rbLoaded = ""; $("#rbText").value = ""; $("#rbName").value = ""; return; }
+  try {
+    const r = await api(`/api/portal/rubric?path=${enc(path)}`);
+    rbLoaded = r.path; $("#rbText").value = r.text; $("#rbName").value = r.path.replace("rubrics/", "");
+    const bad = D.rubrics.find(x => x.path === path)?.error;
+    if (bad) $("#rbMsg").innerHTML = `<div class="err">${esc(bad)}</div>`;
+  } catch (e) { toast(e.message, 6000); }
+}
+
+async function saveRubric() {
+  let name = $("#rbName").value.trim();
+  if (!name) return toast("請填檔名");
+  if (!name.endsWith(".toml")) name += ".toml";
+  const exists = D.rubrics.some(r => r.path === "rubrics/" + name);
+  if (exists && "rubrics/" + name !== rbLoaded && !confirm(`已經有 ${name}，要覆蓋嗎？`)) return;
+  try {
+    D.rubrics = await api("/api/portal/rubric", { name, text: $("#rbText").value, overwrite: exists });
+    rbLoaded = "rubrics/" + name; $("#rbName").value = name;
+    $("#rbMsg").innerHTML = '<div class="okmsg">格式正確，已儲存</div>';
+    renderAll(); $("#rbSel").value = rbLoaded;
+  } catch (e) { $("#rbMsg").innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+}
+
+// ------------------------------------------------------------ 事件
+document.addEventListener("click", e => {
+  const t = e.target;
+  if (t.dataset.pageBtn) { page = t.dataset.pageBtn; renderAll(); if (page === "boards") refreshCounts(); return; }
+  if (t.dataset.act === "retry") return create();
+  const b = t.closest(".board"), tp = t.closest(".tpl");
+  if (b && t.dataset.act) return boardAct(b, t.dataset.act);
+  if (tp && t.dataset.act) return tplAct(tp, t.dataset.act);
+});
+
+document.addEventListener("change", async e => {
+  const t = e.target, b = t.closest(".board");
+  if (!b) return;
+  const base = `/api/portal/boards/${enc(b.dataset.bid)}`;
+  try {
+    if (t.dataset.todo) replaceBoard(await api(base, { todo: t.dataset.todo, done: t.checked }));
+    else if (t.dataset.f === "rubric") { replaceBoard(await api(base, { rubric: t.value })); toast("已更換評分規準，下次「抓作業＋寫草稿」生效"); }
+  } catch (err) { toast(err.message, 6000); load(); }
+});
+
+let counted = false;
+async function refreshCounts() {   // 第一次打開清單時，逐一向 Padlet 查繳交人數
+  if (counted) return;
+  counted = true;
+  for (const b of D.boards) {
+    try { const nb = await api(`/api/portal/boards/${enc(b.id)}/count`, {}); D.boards = D.boards.map(x => x.id === nb.id ? nb : x); }
+    catch { /* 查不到就維持舊的數字 */ }
+  }
+  renderAll();
+}
+
+$("#fTpl").onchange = renderCreate;
+$("#fClass").oninput = $("#fName").oninput = renderCreate;
+$("#fCount").onchange = e => {
+  const n = +e.target.value;
+  secs = secs.slice(0, n);
+  while (secs.length < n) secs.push("");
+  renderSecs();
+  $(`[data-sec="${secs.findIndex(s => !s)}"]`)?.focus();
+};
+$("#secList").oninput = e => { if (e.target.dataset.sec) { secs[+e.target.dataset.sec] = e.target.value; secHints(); } };
+try {   // 步驟說明收合後記住（只存在這台電腦的瀏覽器）
+  if (localStorage.getItem("portal.guide") === "closed") $("#guideSteps").open = false;
+  $("#guideSteps").ontoggle = () => { try { localStorage.setItem("portal.guide", $("#guideSteps").open ? "open" : "closed"); } catch {} };
+} catch {}
+$("#btnCreate").onclick = create;
+$("#btnNewTpl").onclick = () => {
+  $("#tplList").insertAdjacentHTML("beforeend", tplCard({ id: "", name: "", sections: [], description: "", rubric: "" }));
+  $("#tplList .tpl:last-child input").focus();
+};
+$("#rbSel").onchange = e => openRubric(e.target.value);
+$("#btnRbSave").onclick = saveRubric;
+$("#btnRbUpload").onclick = () => $("#rbFile").click();
+$("#rbFile").onchange = async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  $("#rbText").value = await f.text(); $("#rbName").value = f.name.replace(/\.txt$/, ".toml");
+  rbLoaded = ""; $("#rbSel").value = ""; e.target.value = "";
+  $("#rbMsg").innerHTML = '<div class="flag">已讀入檔案，還沒存。按「檢查並儲存」</div>';
+};
+
+page = new URLSearchParams(location.search).get("tab") || "create";
+load().then(() => page === "boards" && refreshCounts()).catch(e => toast(e.message, 8000));
+</script>
+</body>
+</html>
