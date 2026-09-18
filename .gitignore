@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+tests/images/generated/
+reports/raw/
+*.bak-*

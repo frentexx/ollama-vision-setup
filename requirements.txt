@@ -1,0 +1,4 @@
+requests>=2.31
+pillow>=10.0
+ollama>=0.4
+opencc-python-reimplemented>=0.1.7
